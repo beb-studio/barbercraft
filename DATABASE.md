@@ -111,11 +111,23 @@ Business-scoped customer registry.
 - `last_name` (text, nullable)
 - `phone` (text, NOT NULL)
 - `normalized_phone` (text, NOT NULL, E.164 format)
+- `phone_comparison_key` (text, NOT NULL, server-maintained; non-unique)
+- `merged_into_customer_id` (uuid, nullable; NULL for canonical records)
+- `merged_at` (timestamptz, nullable)
+- `merged_by_business_member_id` (uuid, nullable)
 - `notes` (text, nullable)
 - `created_at`, `updated_at` (timestamptz, NOT NULL)
 - Constraints:
   - UNIQUE `(business_id, normalized_phone)`
   - UNIQUE `(business_id, id)`
+  - Composite FK `(business_id, merged_into_customer_id) -> customers(business_id, id)` ON DELETE RESTRICT
+  - Composite FK `(business_id, merged_by_business_member_id) -> business_members(business_id, id)` ON DELETE RESTRICT
+  - Check `customers_no_self_merge_check`: a customer cannot merge into itself
+  - Check `customers_merge_metadata_check`: target, timestamp, and author are either all NULL or all populated
+- Indexes:
+  - `customers_business_phone_comparison_idx` on `(business_id, phone_comparison_key)`
+  - `customers_business_merged_into_idx` on `(business_id, merged_into_customer_id)`
+- Logical merge policy: aliases point directly to a canonical root; customer rows, appointment references, and note ownership are never moved or deleted by merge.
 
 ### 3.8 `business_working_hours`
 Weekly schedule for the business across 7 days.
@@ -187,3 +199,5 @@ Weekly schedule for the business across 7 days.
 2. `enforce_appointment_snapshot()`: Trigger function BEFORE INSERT OR UPDATE on `appointments` that copies `name`, `duration_minutes`, `price` from `services` if snapshots are null.
 3. `prevent_appointment_column_change()`: Trigger function BEFORE UPDATE on `appointments` that rejects changing `business_id`, `customer_id`, `staff_id`, or `service_id`.
 4. `is_valid_timezone(tz text)`: Helper function that tests whether a timezone string is valid in PostgreSQL.
+5. `customer_phone_comparison_key(text)` and `sync_customer_phone_comparison_key()`: Preserve application-equivalent comparison-key semantics during backfill and direct server-side writes.
+6. `enforce_customer_merge_one_hop()`: Deferred constraint trigger that rejects aliases targeting aliases and canonical rows that still have inbound aliases when they become aliases.

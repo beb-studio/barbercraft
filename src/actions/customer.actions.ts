@@ -3,6 +3,8 @@
 import { requireSession, requireAdminOrOwner } from "@/lib/auth/guards";
 import { getMemberships } from "@/lib/auth/session";
 import { CustomerRepository } from "@/repositories/customer.repository";
+import { CustomerMergeService } from "@/services/customer-merge.service";
+import { isCustomerDomainError, type CustomerDomainErrorCode } from "@/lib/customer-domain-errors";
 
 export async function getCustomerDirectoryAction(
   businessIdParam?: string,
@@ -143,6 +145,9 @@ export async function updateCustomerProfileAction(
     }
     if ((error as Error).message === "CUSTOMER_PHONE_CONFLICT") {
       return { success: false as const, error: "Bu telefon numarası başka bir müşteriye ait." };
+    }
+    if (isCustomerDomainError(error) && error.code === "CUSTOMER_ALIAS_MUTATION_FORBIDDEN") {
+      return { success: false as const, error: "Birleştirilmiş müşteri kaydı doğrudan düzenlenemez." };
     }
     return { success: false as const, error: (error as Error).message || "Beklenmeyen hata" };
   }
@@ -360,5 +365,60 @@ export async function getDuplicateCandidatesAction(businessIdParam?: string) {
       return { success: false as const, error: "Yetkisiz işlem." };
     }
     return { success: false as const, error: (error as Error).message || "Beklenmeyen hata" };
+  }
+}
+
+const CUSTOMER_MERGE_MESSAGES: Record<CustomerDomainErrorCode, string> = {
+  CUSTOMER_MERGE_NOT_ELIGIBLE: "Seçilen müşteriler birleştirme koşullarını karşılamıyor.",
+  CUSTOMER_MERGE_STALE: "Müşteri grubu değişti. Lütfen listeyi yenileyip tekrar deneyin.",
+  CUSTOMER_MERGE_CONFLICT: "Müşteriler güvenli biçimde birleştirilemedi. Lütfen tekrar deneyin.",
+  CUSTOMER_NOT_FOUND: "Müşteri bulunamadı veya bu işlem için yetkiniz yok.",
+  CUSTOMER_ALIAS_MUTATION_FORBIDDEN: "Birleştirilmiş müşteri kaydı doğrudan düzenlenemez.",
+  FORBIDDEN: "Bu işlem için yetkiniz yok.",
+};
+
+/**
+ * Server-only foundation for an explicit logical merge. No browser-supplied
+ * business ID is accepted; tenant authority is derived from the canonical
+ * customer and the authenticated user's active membership inside the service.
+ */
+export async function mergeCustomersAction(
+  canonicalCustomerId: string,
+  selectedCustomerIds: string[]
+) {
+  try {
+    const user = await requireSession();
+    const result = await CustomerMergeService.mergeCustomers({
+      actorUserId: user.id,
+      canonicalCustomerId,
+      selectedCustomerIds,
+    });
+
+    safeRevalidatePath("/dashboard/customers");
+    safeRevalidatePath("/dashboard/customers/duplicates");
+
+    return { success: true as const, data: result };
+  } catch (error: unknown) {
+    const value = error as { name?: string };
+    if (value?.name === "UnauthorizedError") {
+      return {
+        success: false as const,
+        code: "FORBIDDEN" as const,
+        error: CUSTOMER_MERGE_MESSAGES.FORBIDDEN,
+      };
+    }
+    if (isCustomerDomainError(error)) {
+      return {
+        success: false as const,
+        code: error.code,
+        error: CUSTOMER_MERGE_MESSAGES[error.code],
+      };
+    }
+
+    return {
+      success: false as const,
+      code: "CUSTOMER_MERGE_CONFLICT" as const,
+      error: CUSTOMER_MERGE_MESSAGES.CUSTOMER_MERGE_CONFLICT,
+    };
   }
 }

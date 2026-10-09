@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "db:test": "node --test tests/database/schema.test.mjs",
+    "db:test": "node --test tests/database/*.test.mjs",
     "auth:test": "tsx --conditions react-server --test tests/auth/*.test.ts",
     "db:types": "node tests/database/generate-types.mjs",
     "platform-admin:grant": "tsx --conditions react-server scripts/platform-admin-cli.ts grant",

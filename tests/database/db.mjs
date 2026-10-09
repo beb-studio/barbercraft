@@ -10,7 +10,22 @@ import pg from "pg";
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const migrationsDir = path.resolve(here, "../../drizzle/migrations");
 
-export async function startDatabase({ port = Math.floor(Math.random() * 10000) + 40000 } = {}) {
+export async function applyMigrationFile(pool, file) {
+  const sqlContent = fs.readFileSync(file, "utf8");
+  const statements = sqlContent
+    .split("--> statement-breakpoint")
+    .map((statement) => statement.trim())
+    .filter(Boolean);
+
+  for (const statement of statements) {
+    await pool.query(statement);
+  }
+}
+
+export async function startDatabase({
+  port = Math.floor(Math.random() * 10000) + 40000,
+  throughMigration,
+} = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "barber-pg-"));
   const server = new EmbeddedPostgres({
     databaseDir: dir,
@@ -26,24 +41,18 @@ export async function startDatabase({ port = Math.floor(Math.random() * 10000) +
   const connectionString = `postgresql://postgres:postgres@localhost:${port}/app`;
   const pool = new pg.Pool({ connectionString, max: 4 });
 
-  const files = fs
+  const allFiles = fs
     .readdirSync(migrationsDir)
     .filter((f) => f.endsWith(".sql"))
     .sort()
     .map((f) => path.join(migrationsDir, f));
+  const files = throughMigration
+    ? allFiles.filter((file) => path.basename(file) <= throughMigration)
+    : allFiles;
 
   for (const file of files) {
     try {
-      const sqlContent = fs.readFileSync(file, "utf8");
-      // Drizzle splits statements with --> statement-breakpoint
-      const statements = sqlContent
-        .split("--> statement-breakpoint")
-        .map((s) => s.trim())
-        .filter(Boolean);
-
-      for (const stmt of statements) {
-        await pool.query(stmt);
-      }
+      await applyMigrationFile(pool, file);
     } catch (err) {
       await pool.end();
       await server.stop();
@@ -55,6 +64,7 @@ export async function startDatabase({ port = Math.floor(Math.random() * 10000) +
     pool,
     connectionString,
     migrationFiles: files.map((f) => path.basename(f)),
+    allMigrationFiles: allFiles,
     async stop() {
       await pool.end();
       await server.stop();

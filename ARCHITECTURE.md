@@ -306,6 +306,21 @@ drizzle/
   - Detection is strictly non-destructive: no automatic merge, no automatic deletion, and no database mutations occur.
 - **Merge Architecture Foundations**:
   - The PostgreSQL immutability trigger `prevent_appointment_column_change()` strictly prevents updating `customer_id` on existing appointment rows.
-  - Full customer merge architecture is deferred to TASK 013C.2, where logical alias or audited merge workflows will be implemented safely within database integrity constraints.
+  - Physical customer merge is forbidden; logical alias lineage is the required architecture.
 
+### 3.14 Logical Customer Merge Foundation (TASK 013C.2A)
+- **Retained Alias Lineage**:
+  - Canonical customers have `merged_into_customer_id IS NULL`; aliases retain their original rows and point directly to the selected canonical root.
+  - Existing `appointments.customer_id` and `customer_notes.customer_id` values are never modified.
+- **Tenant and Provenance Integrity**:
+  - Composite foreign keys bind merge targets and merge authors to the same `business_id`, both using `ON DELETE RESTRICT`.
+  - Database checks reject self-merge and partial merge metadata; a deferred constraint trigger enforces one-hop lineage.
+- **Persisted Phone Comparison**:
+  - `phone_comparison_key` stores application-equivalent `customerPhoneComparisonKey` output without replacing `normalized_phone` and without uniqueness.
+  - Public/manual creation, profile edits, QA bootstrap, migration backfill, and a database synchronization trigger keep it current.
+- **Transactional Merge Service**:
+  - `CustomerMergeService` derives tenant authority from the canonical customer and authenticated active membership, permits only `OWNER`/`ADMIN`, reloads the complete equal-key group, and locks lineage rows in deterministic UUID order.
+  - Existing valid aliases are flattened to the selected root; stale, corrupt, cyclic, cross-tenant, or ineligible requests return typed safe errors.
+- **Deferred Work**:
+  - Alias-aware search, booking resolution, directory/detail aggregation, route redirects, and merge UI remain out of scope until TASK 013C.2B/013C.2C.
 

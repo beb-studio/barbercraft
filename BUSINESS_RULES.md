@@ -385,7 +385,19 @@
    - Accessible only at `/dashboard/customers/duplicates` by `OWNER` and `ADMIN` (403 for `STAFF`).
    - The system NEVER performs automatic customer merging or automatic deletion.
 5. **Customer Merge Architecture Deferred**:
-   - All customer merge operations are deferred to TASK 013C.2.
+   - Merge UI and canonical-aware read resolution are deferred to TASK 013C.2B/013C.2C.
    - Database trigger `prevent_appointment_column_change()` strictly forbids changing `customer_id` on existing appointments.
-   - TASK 013C.2 will implement an explicit, safe, and audited customer merge model.
+   - TASK 013C.2A provides the explicit logical-merge domain foundation without changing historical records.
 
+---
+
+## 15. Logical Customer Merge Foundation Rules (TASK 013C.2A)
+
+1. A canonical customer has no merge target; an alias points directly to one canonical customer in the same business.
+2. Only active tenant `OWNER` and `ADMIN` memberships may execute a logical merge. Platform role alone grants no tenant authority.
+3. V1 merge eligibility requires the same non-empty persisted `phone_comparison_key`; name equality never authorizes merge.
+4. The complete current comparison-key group is reloaded and locked in deterministic UUID order inside one PostgreSQL transaction.
+5. Existing valid alias families are flattened to the newly selected canonical root. Self-merge, cycles, and multi-hop lineage are forbidden.
+6. Merge never updates `appointments.customer_id`, reassigns `customer_notes.customer_id`, or deletes customer rows.
+7. Direct profile mutation of an alias is rejected with a typed domain outcome; canonical-aware editing is deferred.
+8. `normalized_phone` remains the operational identity field. `phone_comparison_key` is non-unique and serves duplicate eligibility and future alias resolution only.

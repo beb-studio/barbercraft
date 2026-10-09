@@ -19,4 +19,4 @@ BarberCraft is an operational business platform. It is NOT primarily a consumer 
 ### Current Evolution
 - Replaced the initial generic, dark AI-generated UI with a custom light-first Design System (Task 011A).
 - The product relies strictly on its multi-tenant foundation: Platform Admins → Business Owners → Staff Members.
-- Tenant-Scoped Customer CRM & Operations: First-class customer directory, appointment history, internal notes, existing customer selection in manual bookings, and non-destructive advisory duplicate candidate review (Tasks 013A, 013B, 013C.1). Explicit customer merging is deferred to Task 013C.2.
+- Tenant-Scoped Customer CRM & Operations: First-class customer directory, appointment history, internal notes, existing customer selection in manual bookings, non-destructive advisory duplicate review, and a tenant-safe logical customer merge foundation that retains aliases and immutable appointment history (Tasks 013A through 013C.2A). Canonical aggregation and merge UI remain deferred.

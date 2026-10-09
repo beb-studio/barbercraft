@@ -1,6 +1,7 @@
 import { db } from "@/db";
 import { customers, appointments } from "@/db/schema";
 import { eq, and, desc, sql, ilike, or } from "drizzle-orm";
+import { CustomerDomainError } from "@/lib/customer-domain-errors";
 import { customerPhoneComparisonKey } from "@/lib/phone";
 
 export interface CustomerDirectoryFilters {
@@ -131,19 +132,37 @@ export const CustomerRepository = {
 
   async updateProfile(businessId: string, customerId: string, data: { firstName: string; lastName: string | null; phone: string; normalizedPhone: string }) {
     try {
-      const [updated] = await db
-        .update(customers)
-        .set({
-          firstName: data.firstName,
-          lastName: data.lastName,
-          phone: data.phone,
-          normalizedPhone: data.normalizedPhone,
-          updatedAt: new Date(),
-        })
-        .where(and(eq(customers.businessId, businessId), eq(customers.id, customerId)))
-        .returning();
-      
-      return updated;
+      return await db.transaction(async (tx) => {
+        const result = await tx.execute(sql`
+          SELECT merged_into_customer_id
+          FROM customers
+          WHERE business_id = ${businessId} AND id = ${customerId}
+          FOR UPDATE
+        `);
+        const lockedCustomer = result.rows[0] as
+          | { merged_into_customer_id: string | null }
+          | undefined;
+
+        if (!lockedCustomer) return undefined;
+        if (lockedCustomer.merged_into_customer_id !== null) {
+          throw new CustomerDomainError("CUSTOMER_ALIAS_MUTATION_FORBIDDEN");
+        }
+
+        const [updated] = await tx
+          .update(customers)
+          .set({
+            firstName: data.firstName,
+            lastName: data.lastName,
+            phone: data.phone,
+            normalizedPhone: data.normalizedPhone,
+            phoneComparisonKey: customerPhoneComparisonKey(data.normalizedPhone),
+            updatedAt: new Date(),
+          })
+          .where(and(eq(customers.businessId, businessId), eq(customers.id, customerId)))
+          .returning();
+
+        return updated;
+      });
     } catch (error: unknown) {
       const err = error as Record<string, unknown>;
       const pgErr = (err?.cause || err) as Record<string, unknown>;
@@ -274,6 +293,7 @@ export const CustomerRepository = {
         lastName: customers.lastName,
         phone: customers.phone,
         normalizedPhone: customers.normalizedPhone,
+        phoneComparisonKey: customers.phoneComparisonKey,
         createdAt: customers.createdAt,
         appointmentCount: countSq,
         lastAppointmentDate: lastAppointmentSq,
@@ -282,11 +302,11 @@ export const CustomerRepository = {
       .where(eq(customers.businessId, businessId))
       .orderBy(desc(customers.createdAt));
 
-    // Group in O(N) by customerPhoneComparisonKey
+    // Group in O(N) by the server-maintained persisted comparison key.
     const groups = new Map<string, typeof customerRows>();
 
     for (const c of customerRows) {
-      const key = customerPhoneComparisonKey(c.normalizedPhone || c.phone);
+      const key = c.phoneComparisonKey;
       if (!key) continue;
       const existing = groups.get(key) || [];
       existing.push(c);

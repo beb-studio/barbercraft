@@ -2,7 +2,7 @@ import { db, DbTransaction } from "../db";
 import { appointments, NewAppointment } from "../db/schema/appointments";
 import { customers } from "../db/schema/customers";
 import { sql, and, inArray, eq, not, gte, lt } from "drizzle-orm";
-import { normalizePhone } from "@/lib/phone";
+import { customerPhoneComparisonKey, normalizePhone } from "@/lib/phone";
 
 export const AppointmentRepository = {
   /**
@@ -104,6 +104,7 @@ export const AppointmentRepository = {
     customerData: { firstName: string; lastName?: string; phone: string; notes?: string }
   ) {
     const normalizedPhone = normalizePhone(customerData.phone);
+    const phoneComparisonKey = customerPhoneComparisonKey(normalizedPhone);
 
     const [customer] = await tx
       .insert(customers)
@@ -113,6 +114,7 @@ export const AppointmentRepository = {
         lastName: customerData.lastName || null,
         phone: customerData.phone,
         normalizedPhone,
+        phoneComparisonKey,
         notes: customerData.notes || null,
       })
       .onConflictDoUpdate({
@@ -121,6 +123,7 @@ export const AppointmentRepository = {
           firstName: customerData.firstName,
           lastName: customerData.lastName || sql`customers.last_name`,
           phone: customerData.phone,
+          phoneComparisonKey,
           updatedAt: new Date(),
         },
       })
