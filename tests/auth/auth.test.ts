@@ -1,0 +1,221 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars, prefer-const */
+import assert from "node:assert/strict";
+import { after, before, describe, it } from "node:test";
+import { startDatabase } from "../database/db.mjs";
+
+let auth: any;
+let db: any;
+let sessionModule: any;
+let guardsModule: any;
+
+let pgServer: any;
+
+before(async () => {
+  pgServer = await startDatabase();
+  process.env.DATABASE_URL = pgServer.connectionString;
+  // Import dynamically AFTER database is started so process.env.DATABASE_URL is set
+  const authLib = await import("../../src/lib/auth/auth");
+  auth = authLib.auth;
+  const dbLib = await import("../../src/db");
+  db = dbLib.db;
+  sessionModule = await import("../../src/lib/auth/session");
+  guardsModule = await import("../../src/lib/auth/guards");
+});
+
+after(async () => {
+  await pgServer?.stop();
+});
+
+describe("Authentication & RBAC Tests", () => {
+  let createdUserId = "";
+  
+  it("registers a new user successfully", async () => {
+    const req = new Request("http://localhost:3000/api/auth/sign-up/email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email: "test@example.com",
+        password: "password123",
+        name: "Test User",
+      }),
+    });
+    const res = await auth.handler(req);
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.ok(body.user?.id);
+    createdUserId = body.user.id;
+  });
+
+  it("fails to register with a duplicate email safely", async () => {
+    const req = new Request("http://localhost:3000/api/auth/sign-up/email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email: "test@example.com", // Duplicate
+        password: "password456",
+        name: "Test User 2",
+      }),
+    });
+    const res = await auth.handler(req);
+    assert.notEqual(res.status, 200);
+  });
+
+  it("authenticates a user with correct credentials and creates a session", async () => {
+    const req = new Request("http://localhost:3000/api/auth/sign-in/email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email: "test@example.com",
+        password: "password123",
+      }),
+    });
+    const res = await auth.handler(req);
+    assert.equal(res.status, 200);
+    const setCookie = res.headers.get("set-cookie");
+    assert.ok(setCookie?.includes("better-auth.session_token="));
+  });
+
+  it("fails to authenticate with incorrect password", async () => {
+    const req = new Request("http://localhost:3000/api/auth/sign-in/email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email: "test@example.com",
+        password: "wrongpassword",
+      }),
+    });
+    const res = await auth.handler(req);
+    assert.notEqual(res.status, 200);
+  });
+});
+
+describe("Role Resolution & Guards", () => {
+  let user1 = "";
+  let user2 = "";
+  let user3 = ""; // ADMIN user
+  let businessA = "00000000-0000-4000-8000-000000000100";
+  let businessB = "00000000-0000-4000-8000-000000000101";
+
+  before(async () => {
+    const res1 = await auth.api.signUpEmail({
+      body: { email: "owner@test.local", password: "password123", name: "O" },
+      asResponse: false
+    });
+    user1 = res1.user.id;
+
+    const res2 = await auth.api.signUpEmail({
+      body: { email: "staff@test.local", password: "password123", name: "S" },
+      asResponse: false
+    });
+    user2 = res2.user.id;
+
+    const res3 = await auth.api.signUpEmail({
+      body: { email: "admin@test.local", password: "password123", name: "A" },
+      asResponse: false
+    });
+    user3 = res3.user.id;
+
+    await db.execute(`INSERT INTO businesses (id, name, slug, timezone, currency) VALUES ('${businessA}', 'Biz A', 'biz-a', 'UTC', 'TRY')`);
+    await db.execute(`INSERT INTO businesses (id, name, slug, timezone, currency) VALUES ('${businessB}', 'Biz B', 'biz-b', 'UTC', 'TRY')`);
+
+    // User1 is OWNER of A, STAFF of B
+    await db.execute(`INSERT INTO business_members (business_id, user_id, role) VALUES ('${businessA}', '${user1}', 'OWNER')`);
+    await db.execute(`INSERT INTO business_members (business_id, user_id, role) VALUES ('${businessB}', '${user1}', 'STAFF')`);
+    
+    // User2 is STAFF of A
+    await db.execute(`INSERT INTO business_members (business_id, user_id, role) VALUES ('${businessA}', '${user2}', 'STAFF')`);
+
+    // User3 is ADMIN of A
+    await db.execute(`INSERT INTO business_members (business_id, user_id, role) VALUES ('${businessA}', '${user3}', 'ADMIN')`);
+  });
+
+  it("resolves User1 as OWNER in Business A", async () => {
+    const originalGetCurrentUser = sessionModule.sessionDependencies.getCurrentUser;
+    // Mock the session getter
+    
+    sessionModule.sessionDependencies.getCurrentUser = async () => ({ id: user1, email: "owner@test.local" });
+    
+    try {
+      const result = await guardsModule.requireOwner(businessA);
+      assert.equal(result.membership.role, "OWNER");
+    } finally {
+      sessionModule.sessionDependencies.getCurrentUser = originalGetCurrentUser;
+    }
+  });
+
+  it("resolves User1 as STAFF in Business B, rejecting requireOwner", async () => {
+    const originalGetCurrentUser = sessionModule.sessionDependencies.getCurrentUser;
+    
+    sessionModule.sessionDependencies.getCurrentUser = async () => ({ id: user1, email: "owner@test.local" });
+    
+    try {
+      await assert.rejects(guardsModule.requireOwner(businessB), { name: "ForbiddenError" });
+      const result = await guardsModule.requireBusinessMembership(businessB);
+      assert.equal(result.membership.role, "STAFF");
+    } finally {
+      sessionModule.sessionDependencies.getCurrentUser = originalGetCurrentUser;
+    }
+  });
+
+  it("User2 (STAFF) cannot pass ADMIN or OWNER guard in Business A", async () => {
+    const originalGetCurrentUser = sessionModule.sessionDependencies.getCurrentUser;
+    
+    sessionModule.sessionDependencies.getCurrentUser = async () => ({ id: user2, email: "staff@test.local" });
+    
+    try {
+      await assert.rejects(guardsModule.requireAdminOrOwner(businessA), { name: "ForbiddenError" });
+      await assert.rejects(guardsModule.requireOwner(businessA), { name: "ForbiddenError" });
+    } finally {
+      sessionModule.sessionDependencies.getCurrentUser = originalGetCurrentUser;
+    }
+  });
+
+  it("User3 (ADMIN) cannot pass OWNER guard but passes ADMIN guard in Business A", async () => {
+    const originalGetCurrentUser = sessionModule.sessionDependencies.getCurrentUser;
+    
+    sessionModule.sessionDependencies.getCurrentUser = async () => ({ id: user3, email: "admin@test.local" });
+    
+    try {
+      // ADMIN cannot pass requireOwner
+      await assert.rejects(guardsModule.requireOwner(businessA), { name: "ForbiddenError" });
+      
+      // ADMIN can pass requireAdminOrOwner
+      const result = await guardsModule.requireAdminOrOwner(businessA);
+      assert.equal(result.membership.role, "ADMIN");
+    } finally {
+      sessionModule.sessionDependencies.getCurrentUser = originalGetCurrentUser;
+    }
+  });
+
+  it("rejects unauthorized access when no session", async () => {
+    const originalGetCurrentUser = sessionModule.sessionDependencies.getCurrentUser;
+    
+    sessionModule.sessionDependencies.getCurrentUser = async () => null;
+    
+    try {
+      await assert.rejects(guardsModule.requireBusinessMembership(businessA), { name: "UnauthorizedError" });
+    } finally {
+      sessionModule.sessionDependencies.getCurrentUser = originalGetCurrentUser;
+    }
+  });
+
+  it("rejects access for a valid user with no membership", async () => {
+    const originalGetCurrentUser = sessionModule.sessionDependencies.getCurrentUser;
+    
+    sessionModule.sessionDependencies.getCurrentUser = async () => ({ id: user2, email: "staff@test.local" }); // User2 is NOT in BizB
+    
+    try {
+      await assert.rejects(guardsModule.requireBusinessMembership(businessB), { name: "ForbiddenError", message: "Not a member of this business" });
+    } finally {
+      sessionModule.sessionDependencies.getCurrentUser = originalGetCurrentUser;
+    }
+  });
+});

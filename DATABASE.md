@@ -1,0 +1,189 @@
+# Database Specification: PostgreSQL & Drizzle ORM Schema
+
+## 1. Overview
+The database layer is built on self-hosted PostgreSQL managed via **Drizzle ORM** (`drizzle-orm` and `drizzle-kit`).
+All table definitions live in `src/db/schema/` and SQL migrations with triggers live in `drizzle/migrations/`.
+
+---
+
+## 2. Entity-Relationship Schema
+
+```mermaid
+erDiagram
+    users ||--o{ business_members : "belongs to"
+    businesses ||--o{ business_members : "has members"
+    businesses ||--o{ services : "defines"
+    business_members ||--o| staff_profiles : "has profile"
+    businesses ||--o{ staff_profiles : "employs"
+    staff_profiles ||--o{ staff_services : "provides"
+    services ||--o{ staff_services : "provided by"
+    businesses ||--o{ customers : "owns"
+    businesses ||--o{ business_working_hours : "operates"
+    staff_profiles ||--o{ staff_working_hours : "works"
+    businesses ||--o{ time_blocks : "schedules"
+    staff_profiles ||--o{ time_blocks : "assigned"
+    businesses ||--o{ appointments : "books"
+    customers ||--o{ appointments : "makes"
+    staff_profiles ||--o{ appointments : "performs"
+    services ||--o{ appointments : "booked for"
+```
+
+---
+
+## 3. Core Tables Reference
+
+### 3.1 `users`
+System user accounts.
+- `id` (uuid, PK, default `gen_random_uuid()`)
+- `email` (text, unique, NOT NULL)
+- `created_at` (timestamptz, default `now()`)
+- `updated_at` (timestamptz, default `now()`)
+
+### 3.2 `businesses` (Tenant Boundary)
+- `id` (uuid, PK, default `gen_random_uuid()`)
+- `name` (text, NOT NULL)
+- `slug` (text, unique, NOT NULL)
+- `phone`, `address`, `logo_url` (text, nullable)
+- `timezone` (text, NOT NULL, checked via `is_valid_timezone()`)
+- `currency` (text, NOT NULL, ISO code e.g. `TRY`, `USD`, `EUR`)
+- `booking_interval_minutes` (integer, default 15, checked `IN (5, 10, 15, 20, 30, 60)`)
+- `active` (boolean, default true, NOT NULL)
+- `created_at`, `updated_at` (timestamptz, NOT NULL)
+
+### 3.3 `business_members`
+Connects users to businesses with role assignments.
+- `id` (uuid, PK, default `gen_random_uuid()`)
+- `business_id` (uuid, FK `businesses.id` ON DELETE CASCADE, NOT NULL)
+- `user_id` (uuid, FK `users.id` ON DELETE CASCADE, NOT NULL)
+- `role` (`business_member_role` enum: `'OWNER'`, `'ADMIN'`, `'STAFF'`, NOT NULL)
+- `active` (boolean, default true, NOT NULL)
+- `created_at`, `updated_at` (timestamptz, NOT NULL)
+- Constraints:
+  - UNIQUE `(business_id, user_id)`
+  - UNIQUE `(business_id, id)`
+  - Partial Unique Index `business_members_one_owner_idx`: `UNIQUE (business_id) WHERE role = 'OWNER'`
+
+### 3.4 `services`
+Dynamic service catalog per business.
+- `id` (uuid, PK, default `gen_random_uuid()`)
+- `business_id` (uuid, FK `businesses.id` ON DELETE CASCADE, NOT NULL)
+- `name` (text, NOT NULL)
+- `description` (text, nullable)
+- `duration_minutes` (integer, NOT NULL, check > 0)
+- `price` (numeric(10, 2), NOT NULL, check >= 0)
+- `active` (boolean, default true, NOT NULL)
+- `created_at`, `updated_at` (timestamptz, NOT NULL)
+- Constraints:
+  - UNIQUE `(business_id, id)`
+
+### 3.5 `staff_profiles`
+Barber profiles linked to business memberships.
+- `id` (uuid, PK, default `gen_random_uuid()`)
+- `business_id` (uuid, FK `businesses.id` ON DELETE CASCADE, NOT NULL)
+- `business_member_id` (uuid, unique, FK `business_members.id`, NOT NULL)
+- `first_name` (text, NOT NULL)
+- `last_name` (text, NOT NULL)
+- `phone`, `profile_image_url` (text, nullable)
+- `public_booking_enabled` (boolean, default true, NOT NULL)
+- `uses_business_hours` (boolean, default true, NOT NULL)
+- `active` (boolean, default true, NOT NULL)
+- `created_at`, `updated_at` (timestamptz, NOT NULL)
+- Composite FK: `(business_id, business_member_id) -> business_members(business_id, id)`
+- Constraints:
+  - UNIQUE `(business_id, id)`
+
+### 3.6 `staff_services`
+Junction table mapping staff to services they perform.
+- `business_id` (uuid, NOT NULL)
+- `staff_id` (uuid, NOT NULL)
+- `service_id` (uuid, NOT NULL)
+- `created_at` (timestamptz, NOT NULL)
+- Primary Key: `(staff_id, service_id)`
+- Composite FKs:
+  - `(business_id, staff_id) -> staff_profiles(business_id, id)` ON DELETE CASCADE
+  - `(business_id, service_id) -> services(business_id, id)` ON DELETE CASCADE
+
+### 3.7 `customers`
+Business-scoped customer registry.
+- `id` (uuid, PK, default `gen_random_uuid()`)
+- `business_id` (uuid, FK `businesses.id` ON DELETE CASCADE, NOT NULL)
+- `first_name` (text, NOT NULL)
+- `last_name` (text, nullable)
+- `phone` (text, NOT NULL)
+- `normalized_phone` (text, NOT NULL, E.164 format)
+- `notes` (text, nullable)
+- `created_at`, `updated_at` (timestamptz, NOT NULL)
+- Constraints:
+  - UNIQUE `(business_id, normalized_phone)`
+  - UNIQUE `(business_id, id)`
+
+### 3.8 `business_working_hours`
+Weekly schedule for the business across 7 days.
+- `id` (uuid, PK)
+- `business_id` (uuid, FK `businesses.id` ON DELETE CASCADE)
+- `day_of_week` (smallint, 0..6: 0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday)
+- `start_time` (time, nullable; NOT NULL when `is_closed = false`, NULL when `is_closed = true`)
+- `end_time` (time, nullable; NOT NULL when `is_closed = false`, NULL when `is_closed = true`)
+- `is_closed` (boolean, default false)
+- Constraints:
+  - UNIQUE `(business_id, day_of_week)`
+  - Check `check_bwh_day_of_week`: `day_of_week BETWEEN 0 AND 6`
+  - Check `check_bwh_hours`: `is_closed = true OR start_time < end_time`
+- Save Policy: All 7 days are saved atomically within a database transaction; revisiting replaces the 7 weekday rows idempotently.
+
+### 3.9 `staff_working_hours`
+- `id` (uuid, PK)
+- `business_id`, `staff_id` (uuid, NOT NULL)
+- `day_of_week` (smallint, 0..6: 0=Sunday, 1=Monday, ..., 6=Saturday)
+- `start_time`, `end_time` (time, nullable: NULL when `is_working = false`, NOT NULL when `is_working = true`)
+- `is_working` (boolean, default true)
+- Composite FK: `(business_id, staff_id) -> staff_profiles(business_id, id)` ON DELETE CASCADE
+- Constraints:
+  - UNIQUE `(business_id, staff_id, day_of_week)`
+  - Check `check_swh_day_of_week`: `day_of_week BETWEEN 0 AND 6`
+  - Check `check_swh_hours`: `((is_working = false AND start_time IS NULL AND end_time IS NULL) OR (is_working = true AND start_time IS NOT NULL AND end_time IS NOT NULL AND start_time < end_time))`
+- Save Policy: Atomic replacement of all 7 days in a single transaction; updates `staff_profiles.uses_business_hours = false`. Auto-disables `public_booking_enabled` if all 7 days are closed. Switching schedule mode never deletes these rows.
+
+### 3.10 `time_blocks`
+- `id` (uuid, PK)
+- `business_id` (uuid, NOT NULL)
+- `staff_id` (uuid, nullable)
+- `block_type` (`time_block_type` enum: `'TIME_OFF'`, `'BREAK'`, `'BLOCKED'`, default: `'BLOCKED'`)
+- `start_time`, `end_time` (timestamptz, NOT NULL)
+- `reason` (text, nullable, max 500 chars in app layer)
+- Composite FK: `(business_id, staff_id) -> staff_profiles(business_id, id)` ON DELETE CASCADE
+- Constraints:
+  - Check `check_time_blocks_time`: `start_time < end_time`
+- Indexes:
+  - `time_blocks_business_staff_time_idx` ON `(business_id, staff_id, start_time)`
+- Concurrency & Overlap:
+  - Overlap condition: `new.start_time < existing.end_time AND new.end_time > existing.start_time`
+  - All creations and edits acquire an exclusive row-level lock on `staff_profiles` (`SELECT id FROM staff_profiles ... FOR UPDATE`) inside the transaction to eliminate race conditions.
+  - Immutability: Records with `end_time <= NOW()` are read-only (cannot be edited or deleted).
+
+### 3.11 `appointments`
+- `id` (uuid, PK)
+- `business_id`, `customer_id`, `staff_id`, `service_id` (uuid, NOT NULL)
+- `start_time`, `end_time` (timestamptz, NOT NULL)
+- `status` (`appointment_status` enum: `'PENDING'`, `'CONFIRMED'`, `'CANCELLED'`, `'COMPLETED'`, `'NO_SHOW'`)
+- `source` (`appointment_source` enum: `'PUBLIC_WEB'`, `'MANUAL_ADMIN'`, `'MANUAL_STAFF'`)
+- `service_name_snapshot` (text, NOT NULL)
+- `service_duration_snapshot` (integer, NOT NULL)
+- `service_price_snapshot` (numeric(10,2), NOT NULL)
+- `cancellation_reason`, `notes` (text, nullable)
+- Composite FKs:
+  - `(business_id, customer_id) -> customers(business_id, id)` ON DELETE RESTRICT
+  - `(business_id, staff_id) -> staff_profiles(business_id, id)` ON DELETE RESTRICT
+  - `(business_id, service_id) -> services(business_id, id)` ON DELETE RESTRICT
+- Indexes:
+  - `appointments_business_time_idx` ON `(business_id, start_time, end_time)`
+  - `appointments_business_staff_time_idx` ON `(business_id, staff_id, start_time)`
+  - `appointments_business_customer_idx` ON `(business_id, customer_id)`
+
+---
+
+## 4. Database Triggers & Functions
+1. `set_updated_at()`: Trigger function that automatically updates `updated_at = NOW()` on row updates for all entities.
+2. `enforce_appointment_snapshot()`: Trigger function BEFORE INSERT OR UPDATE on `appointments` that copies `name`, `duration_minutes`, `price` from `services` if snapshots are null.
+3. `prevent_appointment_column_change()`: Trigger function BEFORE UPDATE on `appointments` that rejects changing `business_id`, `customer_id`, `staff_id`, or `service_id`.
+4. `is_valid_timezone(tz text)`: Helper function that tests whether a timezone string is valid in PostgreSQL.
