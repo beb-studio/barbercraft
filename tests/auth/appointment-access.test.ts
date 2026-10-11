@@ -250,6 +250,7 @@ describe("Appointment access token service", { concurrency: false }, () => {
     );
     assert.deepEqual(Object.keys(resolved).sort(), [
       "businessName",
+      "canCancel",
       "currency",
       "dateLabel",
       "durationMinutes",
@@ -264,6 +265,7 @@ describe("Appointment access token service", { concurrency: false }, () => {
     assert.equal(resolved.serviceName, "Güvenli Kesim");
     assert.equal(resolved.staffDisplayName, "Ayşe Usta");
     assert.equal(resolved.status, "CONFIRMED");
+    assert.equal(resolved.canCancel, false);
     assert.equal(resolved.notes, undefined);
     assert.equal(resolved.customerId, undefined);
     assert.equal(resolved.appointmentId, undefined);
@@ -437,7 +439,7 @@ describe("Appointment access token service", { concurrency: false }, () => {
 });
 
 describe("Public management route security contract", () => {
-  it("uses one generic invalid-link message and renders no mutation controls", async () => {
+  it("uses one generic invalid-link message and exposes no reschedule or internal identifiers", async () => {
     const routeSource = await readFile(
       path.resolve("src/app/(public)/randevu/page.tsx"),
       "utf8"
@@ -454,7 +456,8 @@ describe("Public management route security contract", () => {
     );
     assert.match(invalidSource, /geçersiz veya artık kullanılamıyor/);
     assert.doesNotMatch(invalidSource, /süresi doldu|iptal edildi|bulunamadı/i);
-    assert.doesNotMatch(clientSource, /İptal Et|Yeniden Planla|customerId|appointmentId/);
+    assert.match(clientSource, /Randevuyu İptal Et/);
+    assert.doesNotMatch(clientSource, /Yeniden Planla|customerId|appointmentId|cancellationReason/);
     assert.match(routeSource, /AppointmentManagementClient/);
     assert.match(clientSource, /resolveAppointmentAccessAction/);
     assert.match(clientSource, /window\.history\.replaceState/);

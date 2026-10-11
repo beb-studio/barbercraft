@@ -1,7 +1,8 @@
 import "server-only";
 
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { db, type DbExecutor } from "@/db";
+import type { AppointmentStatus } from "@/db/schema/appointments";
 import {
   appointmentAccessTokens,
   appointments,
@@ -54,8 +55,11 @@ export const AppointmentAccessRepository = {
     return row ?? null;
   },
 
-  async findManagementViewByHash(tokenHash: string) {
-    const [row] = await db
+  async findManagementViewByHash(
+    tokenHash: string,
+    executor: DbExecutor = db
+  ) {
+    const [row] = await executor
       .select({
         tokenExpiresAt: appointmentAccessTokens.expiresAt,
         tokenRevokedAt: appointmentAccessTokens.revokedAt,
@@ -94,6 +98,145 @@ export const AppointmentAccessRepository = {
       .limit(1);
 
     return row ?? null;
+  },
+
+  async findCancellationTargetByHash(
+    executor: DbExecutor,
+    tokenHash: string
+  ) {
+    const [row] = await executor
+      .select({
+        businessId: appointmentAccessTokens.businessId,
+        appointmentId: appointmentAccessTokens.appointmentId,
+        tokenExpiresAt: appointmentAccessTokens.expiresAt,
+        tokenRevokedAt: appointmentAccessTokens.revokedAt,
+        staffId: appointments.staffId,
+      })
+      .from(appointmentAccessTokens)
+      .innerJoin(
+        appointments,
+        and(
+          eq(appointments.businessId, appointmentAccessTokens.businessId),
+          eq(appointments.id, appointmentAccessTokens.appointmentId)
+        )
+      )
+      .where(eq(appointmentAccessTokens.tokenHash, tokenHash))
+      .limit(1);
+
+    return row ?? null;
+  },
+
+  async lockStaffProfileForUpdate(
+    executor: DbExecutor,
+    businessId: string,
+    staffId: string
+  ): Promise<boolean> {
+    const result = await executor.execute(sql`
+      SELECT id
+      FROM staff_profiles
+      WHERE business_id = ${businessId} AND id = ${staffId}
+      FOR UPDATE
+    `);
+    return result.rows.length === 1;
+  },
+
+  async lockAppointmentForUpdate(
+    executor: DbExecutor,
+    businessId: string,
+    appointmentId: string
+  ): Promise<{
+    id: string;
+    staffId: string;
+    status: AppointmentStatus;
+    startTime: Date;
+  } | null> {
+    const result = await executor.execute(sql`
+      SELECT id, staff_id, status, start_time
+      FROM appointments
+      WHERE business_id = ${businessId} AND id = ${appointmentId}
+      FOR UPDATE
+    `);
+    const row = result.rows[0] as
+      | {
+          id: string;
+          staff_id: string;
+          status: AppointmentStatus;
+          start_time: Date;
+        }
+      | undefined;
+
+    return row
+      ? {
+          id: row.id,
+          staffId: row.staff_id,
+          status: row.status,
+          startTime:
+            row.start_time instanceof Date
+              ? row.start_time
+              : new Date(row.start_time),
+        }
+      : null;
+  },
+
+  async lockTokenForUpdate(
+    executor: DbExecutor,
+    tokenHash: string
+  ): Promise<{
+    businessId: string;
+    appointmentId: string;
+    expiresAt: Date;
+    revokedAt: Date | null;
+  } | null> {
+    const result = await executor.execute(sql`
+      SELECT business_id, appointment_id, expires_at, revoked_at
+      FROM appointment_access_tokens
+      WHERE token_hash = ${tokenHash}
+      FOR UPDATE
+    `);
+    const row = result.rows[0] as
+      | {
+          business_id: string;
+          appointment_id: string;
+          expires_at: Date;
+          revoked_at: Date | null;
+        }
+      | undefined;
+
+    return row
+      ? {
+          businessId: row.business_id,
+          appointmentId: row.appointment_id,
+          expiresAt:
+            row.expires_at instanceof Date
+              ? row.expires_at
+              : new Date(row.expires_at),
+          revokedAt:
+            row.revoked_at === null
+              ? null
+              : row.revoked_at instanceof Date
+                ? row.revoked_at
+                : new Date(row.revoked_at),
+        }
+      : null;
+  },
+
+  async setAppointmentCancelled(
+    executor: DbExecutor,
+    businessId: string,
+    appointmentId: string
+  ): Promise<boolean> {
+    const rows = await executor
+      .update(appointments)
+      .set({ status: "CANCELLED" })
+      .where(
+        and(
+          eq(appointments.businessId, businessId),
+          eq(appointments.id, appointmentId)
+        )
+      )
+      .returning({ id: appointments.id });
+
+    return rows.length === 1;
   },
 
   async revokeByHash(

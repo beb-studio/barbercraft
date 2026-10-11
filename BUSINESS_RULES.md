@@ -83,6 +83,7 @@
 | Manage Customers (CRM Directory, Details, Notes) | Yes | Yes | No (Lookup only for booking) | No |
 | Review & Merge Duplicate Customers | Yes | Yes | No | No |
 | View Own Appointment Through Secret Link | No tenant role required | No tenant role required | No tenant role required | Yes, valid capability only |
+| Cancel Own Future Appointment Through Secret Link | No tenant role required | No tenant role required | No tenant role required | Yes, valid capability only |
 
 ---
 
@@ -433,3 +434,19 @@
 9. Public management must not expose database IDs, phone/contact PII, appointment notes, customer notes, CRM history, customer merge lineage, staff private data, or business memberships.
 10. Capability responses are private/no-store, noindex/nofollow/noarchive, and `no-referrer`. Tokens are not sent to analytics or unrelated third parties.
 11. TASK 014A is read-only. It provides no cancellation or rescheduling controls; those mutations require separate TASK 014B/014C rules and concurrency design.
+
+---
+
+## 17. Public Appointment Cancellation Rules (TASK 014B)
+
+1. A valid, unexpired, unrevoked appointment capability is the sole public cancellation authority. Browser-supplied appointment, business, and customer IDs grant no authority.
+2. Public cancellation is allowed only for `PENDING` or `CONFIRMED` appointments and only while authoritative server time is strictly earlier than `start_time`. At or after the start instant it is forbidden.
+3. V1 has no configurable cancellation-notice window. The centralized policy is the future extension point for such a rule.
+4. Cancellation sets the durable appointment status to `CANCELLED` and lets the existing `updated_at` trigger record mutation time. It never deletes an appointment or changes customer, staff, service, start/end, snapshots, notes, or `cancellation_reason`.
+5. Repeated equivalent cancellation is idempotent: an already `CANCELLED` appointment returns a safe cancelled result without another lifecycle change. `COMPLETED` and `NO_SHOW` are terminal and cannot be publicly cancelled.
+6. Mutation uses one transaction and the established staff-then-appointment lock hierarchy. Capability, current status, and current time are revalidated after waiting for locks.
+7. Public cancellation serializes with internal status changes and rescheduling. A committed cancellation cannot be resurrected by rescheduling; a committed reschedule is re-read before public eligibility is decided.
+8. `CANCELLED` remains non-blocking in the shared availability engine. Cancelling naturally releases capacity without deleting rows or inventing separate slot state.
+9. Cancellation never revokes management tokens. The same token and all other active tokens remain readable through normal expiry, show `İptal Edildi`, and return `canCancel = false`.
+10. No cancellation reason, CRM note, appointment-note mutation, customer account, notification, or public rescheduling is part of TASK 014B.
+11. Invalid capabilities retain the TASK 014A generic link state. A valid capability whose appointment became ineligible receives only `Bu randevu artık iptal edilemiyor.`

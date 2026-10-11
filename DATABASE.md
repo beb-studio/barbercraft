@@ -200,6 +200,8 @@ Weekly schedule for the business across 7 days.
   - `appointments_business_time_idx` ON `(business_id, start_time, end_time)`
   - `appointments_business_staff_time_idx` ON `(business_id, staff_id, start_time)`
   - `appointments_business_customer_idx` ON `(business_id, customer_id)`
+- Public cancellation policy: no schema extension is required. A capability-authorized cancellation changes only `status` to `CANCELLED`; the existing `set_appointments_updated_at` trigger records the update. `cancellation_reason` remains untouched in V1, and all identity, assignment, timing, snapshot, note, and CRM fields remain unchanged.
+- Scheduling policy: availability/conflict queries already exclude `CANCELLED`, so cancellation releases capacity without deleting or moving the appointment.
 
 ### 3.12 `appointment_access_tokens`
 Appointment-scoped bearer capabilities for accountless public management access.
@@ -219,6 +221,7 @@ Appointment-scoped bearer capabilities for accountless public management access.
   - `appointment_access_tokens_business_appointment_idx` on `(business_id, appointment_id)` for issuance/revocation lifecycle operations
 - Security policy: raw tokens are generated with 256-bit entropy, returned only to the trusted issuance caller as a `/randevu#<token>` fragment, never persisted server-side, and resolved only after server-side SHA-256 hashing. URL fragments are not part of HTTP request targets and are removed from browser history immediately after capture.
 - Lifetime policy: expiry is appointment end plus 24 hours and is refreshed when internal rescheduling changes the end time. Revocation is explicit; multiple independently revocable tokens per appointment are allowed.
+- Cancellation policy: successful public cancellation does not update or revoke token rows. All otherwise-valid tokens for the appointment resolve the shared `CANCELLED` state until their normal expiry.
 - Migration policy: migration `0014_appointment_access_tokens.sql` creates no token rows and does not modify appointments or customers.
 
 ---

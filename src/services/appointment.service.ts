@@ -7,6 +7,11 @@ import { getDay } from "date-fns";
 import { sql } from "drizzle-orm";
 import { resolveCanonicalCustomer } from "@/services/customer-resolution.service";
 import { AppointmentAccessService } from "@/services/appointment-access.service";
+import {
+  canTransitionAppointmentStatus,
+  isOperationalAppointmentStatus,
+} from "@/lib/appointment-lifecycle";
+import type { AppointmentStatus } from "@/db/schema/appointments";
 
 export interface CreateAppointmentInput {
   businessId: string;
@@ -328,15 +333,10 @@ export const AppointmentService = {
         throw new Error("NOT_FOUND: Appointment disappeared");
       }
 
-      const currentStatus = app.status as string;
+      const currentStatus = app.status as AppointmentStatus;
 
       // 4. Validate transition rules
-      const validTransitions: Record<string, string[]> = {
-        PENDING: ["CANCELLED"],
-        CONFIRMED: ["COMPLETED", "NO_SHOW", "CANCELLED"],
-      };
-
-      if (!validTransitions[currentStatus]?.includes(targetStatus)) {
+      if (!canTransitionAppointmentStatus(currentStatus, targetStatus)) {
         throw new Error(`INVALID_TRANSITION: Cannot transition from ${currentStatus} to ${targetStatus}`);
       }
 
@@ -408,7 +408,7 @@ export const AppointmentService = {
       }
 
       // Pre-validation: Must be PENDING or CONFIRMED
-      if (initialApp.status !== "PENDING" && initialApp.status !== "CONFIRMED") {
+      if (!isOperationalAppointmentStatus(initialApp.status as AppointmentStatus)) {
          throw new Error("NOT_RESCHEDULABLE: Only PENDING or CONFIRMED appointments can be rescheduled");
       }
 
@@ -442,7 +442,7 @@ export const AppointmentService = {
       }
 
       // Validate status / time again inside lock
-      if (app.status !== "PENDING" && app.status !== "CONFIRMED") {
+      if (!isOperationalAppointmentStatus(app.status as AppointmentStatus)) {
          throw new Error("NOT_RESCHEDULABLE: Only PENDING or CONFIRMED appointments can be rescheduled");
       }
       
@@ -561,8 +561,8 @@ export const AppointmentService = {
         throw new Error("STALE_APPOINTMENT: Staff changed concurrently");
       }
 
-      const status = app.status as string;
-      if (status !== "PENDING" && status !== "CONFIRMED") {
+      const status = app.status as AppointmentStatus;
+      if (!isOperationalAppointmentStatus(status)) {
         throw new Error("NOT_REASSIGNABLE: Only PENDING or CONFIRMED appointments can be reassigned");
       }
 
