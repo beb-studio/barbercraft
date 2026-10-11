@@ -23,6 +23,7 @@ erDiagram
     businesses ||--o{ time_blocks : "schedules"
     staff_profiles ||--o{ time_blocks : "assigned"
     businesses ||--o{ appointments : "books"
+    appointments ||--o{ appointment_access_tokens : "authorizes public view"
     customers ||--o{ appointments : "makes"
     staff_profiles ||--o{ appointments : "performs"
     services ||--o{ appointments : "booked for"
@@ -193,10 +194,32 @@ Weekly schedule for the business across 7 days.
   - `(business_id, customer_id) -> customers(business_id, id)` ON DELETE RESTRICT
   - `(business_id, staff_id) -> staff_profiles(business_id, id)` ON DELETE RESTRICT
   - `(business_id, service_id) -> services(business_id, id)` ON DELETE RESTRICT
+- Constraints:
+  - UNIQUE `(business_id, id)` (tenant-safe child references)
 - Indexes:
   - `appointments_business_time_idx` ON `(business_id, start_time, end_time)`
   - `appointments_business_staff_time_idx` ON `(business_id, staff_id, start_time)`
   - `appointments_business_customer_idx` ON `(business_id, customer_id)`
+
+### 3.12 `appointment_access_tokens`
+Appointment-scoped bearer capabilities for accountless public management access.
+
+- `id` (uuid, PK, default `gen_random_uuid()`)
+- `business_id`, `appointment_id` (uuid, NOT NULL)
+- `token_hash` (text, NOT NULL, UNIQUE; exactly 64 hexadecimal SHA-256 characters by application contract)
+- `expires_at` (timestamptz, NOT NULL)
+- `revoked_at` (timestamptz, nullable)
+- `created_at` (timestamptz, NOT NULL, default `now()`)
+- Composite FK: `(business_id, appointment_id) -> appointments(business_id, id)` ON DELETE CASCADE
+- Checks:
+  - `char_length(token_hash) = 64`
+  - `expires_at > created_at`
+- Indexes:
+  - UNIQUE index supplied by `token_hash` for capability lookup
+  - `appointment_access_tokens_business_appointment_idx` on `(business_id, appointment_id)` for issuance/revocation lifecycle operations
+- Security policy: raw tokens are generated with 256-bit entropy, returned only to the trusted issuance caller as a `/randevu#<token>` fragment, never persisted server-side, and resolved only after server-side SHA-256 hashing. URL fragments are not part of HTTP request targets and are removed from browser history immediately after capture.
+- Lifetime policy: expiry is appointment end plus 24 hours and is refreshed when internal rescheduling changes the end time. Revocation is explicit; multiple independently revocable tokens per appointment are allowed.
+- Migration policy: migration `0014_appointment_access_tokens.sql` creates no token rows and does not modify appointments or customers.
 
 ---
 

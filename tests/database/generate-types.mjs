@@ -9,11 +9,9 @@ import { startDatabase } from "./db.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const target = path.resolve(here, "../../src/types/database.types.ts");
-const port = 54397;
-
-const db = await startDatabase({ port });
+const db = await startDatabase();
 try {
-  const url = `postgresql://postgres:postgres@localhost:${port}/app?sslmode=disable`;
+  const url = `${db.connectionString}?sslmode=disable`;
   const generated = execFileSync(
     "pnpm",
     ["dlx", "supabase@2.119.0", "gen", "types", "typescript", "--db-url", url, "--schema", "public"],

@@ -123,7 +123,7 @@ describe("Database Schema Foundations", () => {
     assert.ok(db.migrationFiles.length > 0, "Migration files should be found and executed");
   });
 
-  it("contains all 11 core application tables", async () => {
+  it("contains all 12 core application tables", async () => {
     const r = await q(`SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'`);
     ok(r);
     const expected = [
@@ -138,6 +138,7 @@ describe("Database Schema Foundations", () => {
       "staff_working_hours",
       "time_blocks",
       "appointments",
+      "appointment_access_tokens",
     ];
     const actual = r.rows.map((row) => row.table_name);
     for (const table of expected) {

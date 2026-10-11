@@ -272,8 +272,6 @@ describe("TASK 009A.2: Public Any Staff Flow Integration", () => {
         customerPhone: "+905559876543",
       });
       
-      console.log(res);
-
       assert.equal(res.success, true);
       assert.equal(res.data?.businessName, "Flow Barber");
       assert.equal(res.data?.serviceName, "Saç Kesimi");

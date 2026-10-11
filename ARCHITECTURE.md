@@ -358,3 +358,22 @@ drizzle/
 - **Historical immutability and V1 scope**:
   - Merge changes only customer merge metadata. Customer rows remain, appointment customer IDs and service snapshots remain unchanged, and historical note customer IDs remain unchanged.
   - There is no unmerge, physical deletion, appointment reassignment, or note reassignment operation in V1.
+
+### 3.17 Secure Public Appointment Management Access (TASK 014A)
+- **Accountless capability model**:
+  - A successful public booking issues a cryptographically random 32-byte (256-bit) base64url token. Only `SHA-256(rawToken)` is stored in `appointment_access_tokens`; the raw token is returned once in the booking success DTO as the URL fragment `/randevu#<token>` and is never logged or persisted server-side.
+  - URL-fragment delivery is intentional: fragments are not sent in HTTP request targets and therefore stay out of normal Next.js/Nginx access logs and referrers. The client captures the fragment, immediately removes it from browser history/address state, and submits it to a server action for hashing and resolution. Next.js development request logging excludes `/randevu`, and Server Function argument logging is disabled.
+  - `token_hash` is globally unique. Multiple active token rows may reference one appointment so a future notification system can issue a fresh link without implicitly revoking previous links.
+- **Transactional finalization**:
+  - Specific-staff and `Fark Etmez` public bookings issue the token inside the same staff-locked appointment transaction. Token persistence failure rolls back the appointment and any newly created customer; public success therefore always includes management access.
+  - Historical and manual appointments are not backfilled. The server-only issuance primitive can create a recoverable raw link for an existing operational appointment later.
+- **Validity and revocation**:
+  - The centralized validity policy expires access at appointment end time plus 24 hours. Internal rescheduling refreshes existing token expirations atomically to the new end time plus the same grace period.
+  - `revoked_at` invalidates a token immediately. Issuing another token does not auto-revoke existing tokens.
+- **Read-only public boundary**:
+  - `/randevu` submits the captured fragment secret to a server-only resolver, which hashes it, validates syntax, expiry, and revocation, then returns only business name, appointment service snapshots, current assigned staff display name, business-timezone date/time, price/currency, duration, and Turkish status.
+  - The route exposes no database IDs, customer/appointment notes, CRM history, merge lineage, membership data, contact PII, cancellation, or rescheduling mutation.
+  - Missing, malformed, unknown, expired, and revoked tokens share one non-oracular Turkish invalid-link state.
+- **Capability URL protections**:
+  - Responses use `Cache-Control: private, no-store`, `Referrer-Policy: no-referrer`, and `X-Robots-Tag: noindex, nofollow, noarchive`; route metadata also disables indexing.
+  - The route is request-time rendered and contains no analytics or unrelated third-party resources.

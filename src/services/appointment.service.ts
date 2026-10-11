@@ -6,6 +6,7 @@ import { toZonedTime } from "date-fns-tz";
 import { getDay } from "date-fns";
 import { sql } from "drizzle-orm";
 import { resolveCanonicalCustomer } from "@/services/customer-resolution.service";
+import { AppointmentAccessService } from "@/services/appointment-access.service";
 
 export interface CreateAppointmentInput {
   businessId: string;
@@ -22,6 +23,7 @@ export interface CreateAppointmentInput {
   notes?: string;
   context?: "PUBLIC" | "INTERNAL";
   source?: "PUBLIC_WEB" | "MANUAL_ADMIN" | "MANUAL_STAFF";
+  issueManagementAccess?: boolean;
 }
 
 export interface CreateAnyStaffAppointmentInput {
@@ -39,6 +41,7 @@ export interface CreateAnyStaffAppointmentInput {
   notes?: string;
   context?: "PUBLIC" | "INTERNAL";
   source?: "PUBLIC_WEB" | "MANUAL_ADMIN" | "MANUAL_STAFF";
+  issueManagementAccess?: boolean;
 }
 
 export const AppointmentService = {
@@ -158,7 +161,18 @@ export const AppointmentService = {
         notes: input.notes || input.customer?.notes || null,
       });
 
-      return { appointment, assignedStaffId: selectedStaffId };
+      const managementAccess = input.issueManagementAccess
+        ? await AppointmentAccessService.issue(
+            { businessId: input.businessId, appointmentId: appointment.id },
+            tx
+          )
+        : null;
+
+      return {
+        appointment,
+        assignedStaffId: selectedStaffId,
+        managementToken: managementAccess?.rawToken,
+      };
     });
   },
 
@@ -249,7 +263,17 @@ export const AppointmentService = {
         notes: input.notes || input.customer?.notes || null,
       });
 
-      return appointment;
+      const managementAccess = input.issueManagementAccess
+        ? await AppointmentAccessService.issue(
+            { businessId: input.businessId, appointmentId: appointment.id },
+            tx
+          )
+        : null;
+
+      return {
+        ...appointment,
+        managementToken: managementAccess?.rawToken,
+      };
     });
   },
 
@@ -472,6 +496,12 @@ export const AppointmentService = {
       await tx.execute(
         sql`UPDATE appointments SET start_time = ${newRequestedStartDate}, end_time = ${newEndAt}, updated_at = NOW() WHERE id = ${input.appointmentId}`
       );
+
+      await AppointmentAccessService.refreshExpirationAfterReschedule(tx, {
+        businessId: input.businessId,
+        appointmentId: input.appointmentId,
+        appointmentEndTime: newEndAt,
+      });
 
       return { success: true };
     });

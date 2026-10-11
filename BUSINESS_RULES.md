@@ -82,6 +82,7 @@
 | Manage Time Blocks | Yes | Yes | Yes (own blocks) | No |
 | Manage Customers (CRM Directory, Details, Notes) | Yes | Yes | No (Lookup only for booking) | No |
 | Review & Merge Duplicate Customers | Yes | Yes | No | No |
+| View Own Appointment Through Secret Link | No tenant role required | No tenant role required | No tenant role required | Yes, valid capability only |
 
 ---
 
@@ -416,3 +417,19 @@
 6. Merge never updates `appointments.customer_id`, reassigns `customer_notes.customer_id`, or deletes customer rows.
 7. Direct profile mutation of an alias is rejected with a typed domain outcome; authorized alias detail routes redirect to the editable canonical profile.
 8. `normalized_phone` remains the operational identity field. `phone_comparison_key` is non-unique and serves duplicate eligibility and future alias resolution only.
+
+---
+
+## 16. Public Appointment Management Access Rules (TASK 014A)
+
+1. Customers remain accountless. Possession of a valid opaque `/randevu#<token>` capability URL is the sole authority for the read-only public appointment view. The fragment convention keeps the raw secret out of HTTP access logs and referrer headers; it is removed from browser history immediately after capture.
+2. Public booking generates at least 256 bits of cryptographic entropy and persists only the SHA-256 token hash. Raw tokens must never be stored or logged.
+3. Specific-staff and `Fark Etmez` bookings create the appointment and access token atomically. A token write failure cannot produce a successful or partially committed public booking.
+4. Access expires at the appointment end time plus 24 hours. Valid links may display `CANCELLED`, `COMPLETED`, or `NO_SHOW` appointments until that expiry. Internal rescheduling moves token expiry to the new end time plus 24 hours.
+5. A token with `revoked_at IS NOT NULL` is invalid. A fresh token may be issued without automatically revoking other active tokens for the appointment.
+6. Historical and manual appointments receive no unrecoverable migration-generated token. A server-only primitive may issue a fresh token for an existing operational appointment when a trusted future delivery channel exists.
+7. Missing, malformed, unknown, expired, and revoked tokens return the same public message: `Bu randevu bağlantısı geçersiz veya artık kullanılamıyor.`
+8. The public DTO is limited to the business name, service snapshots, assigned staff display name, business-timezone date/time, snapshot duration/price, currency, and Turkish appointment status.
+9. Public management must not expose database IDs, phone/contact PII, appointment notes, customer notes, CRM history, customer merge lineage, staff private data, or business memberships.
+10. Capability responses are private/no-store, noindex/nofollow/noarchive, and `no-referrer`. Tokens are not sent to analytics or unrelated third parties.
+11. TASK 014A is read-only. It provides no cancellation or rescheduling controls; those mutations require separate TASK 014B/014C rules and concurrency design.

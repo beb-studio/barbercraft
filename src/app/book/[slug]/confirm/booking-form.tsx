@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, Clock, Calendar, Scissors, User, Users, AlertCircle, Loader2 } from "lucide-react";
+import { CheckCircle2, Clock, Calendar, CalendarCog, Scissors, User, Users, AlertCircle, Loader2 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -125,7 +125,14 @@ export function BookingForm({
           </div>
         </div>
 
-        <div className="pt-6 flex justify-center">
+        <div className="pt-2 flex flex-col items-center gap-3">
+          <Link
+            href={successData.managementPath}
+            className={buttonVariants({ className: "w-full max-w-lg h-12 text-base" })}
+          >
+            <CalendarCog className="mr-2 h-5 w-5" />
+            Randevuyu Yönet
+          </Link>
           <Link
             href={`/book/${slug}`}
             className={buttonVariants({ variant: "outline", className: "w-full max-w-lg h-12 text-base" })}
