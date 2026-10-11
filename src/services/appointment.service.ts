@@ -6,6 +6,12 @@ import { toZonedTime } from "date-fns-tz";
 import { getDay } from "date-fns";
 import { sql } from "drizzle-orm";
 import { resolveCanonicalCustomer } from "@/services/customer-resolution.service";
+import { AppointmentAccessService } from "@/services/appointment-access.service";
+import {
+  canTransitionAppointmentStatus,
+  isOperationalAppointmentStatus,
+} from "@/lib/appointment-lifecycle";
+import type { AppointmentStatus } from "@/db/schema/appointments";
 
 export interface CreateAppointmentInput {
   businessId: string;
@@ -22,6 +28,7 @@ export interface CreateAppointmentInput {
   notes?: string;
   context?: "PUBLIC" | "INTERNAL";
   source?: "PUBLIC_WEB" | "MANUAL_ADMIN" | "MANUAL_STAFF";
+  issueManagementAccess?: boolean;
 }
 
 export interface CreateAnyStaffAppointmentInput {
@@ -39,6 +46,7 @@ export interface CreateAnyStaffAppointmentInput {
   notes?: string;
   context?: "PUBLIC" | "INTERNAL";
   source?: "PUBLIC_WEB" | "MANUAL_ADMIN" | "MANUAL_STAFF";
+  issueManagementAccess?: boolean;
 }
 
 export const AppointmentService = {
@@ -158,7 +166,18 @@ export const AppointmentService = {
         notes: input.notes || input.customer?.notes || null,
       });
 
-      return { appointment, assignedStaffId: selectedStaffId };
+      const managementAccess = input.issueManagementAccess
+        ? await AppointmentAccessService.issue(
+            { businessId: input.businessId, appointmentId: appointment.id },
+            tx
+          )
+        : null;
+
+      return {
+        appointment,
+        assignedStaffId: selectedStaffId,
+        managementToken: managementAccess?.rawToken,
+      };
     });
   },
 
@@ -249,7 +268,17 @@ export const AppointmentService = {
         notes: input.notes || input.customer?.notes || null,
       });
 
-      return appointment;
+      const managementAccess = input.issueManagementAccess
+        ? await AppointmentAccessService.issue(
+            { businessId: input.businessId, appointmentId: appointment.id },
+            tx
+          )
+        : null;
+
+      return {
+        ...appointment,
+        managementToken: managementAccess?.rawToken,
+      };
     });
   },
 
@@ -304,15 +333,10 @@ export const AppointmentService = {
         throw new Error("NOT_FOUND: Appointment disappeared");
       }
 
-      const currentStatus = app.status as string;
+      const currentStatus = app.status as AppointmentStatus;
 
       // 4. Validate transition rules
-      const validTransitions: Record<string, string[]> = {
-        PENDING: ["CANCELLED"],
-        CONFIRMED: ["COMPLETED", "NO_SHOW", "CANCELLED"],
-      };
-
-      if (!validTransitions[currentStatus]?.includes(targetStatus)) {
+      if (!canTransitionAppointmentStatus(currentStatus, targetStatus)) {
         throw new Error(`INVALID_TRANSITION: Cannot transition from ${currentStatus} to ${targetStatus}`);
       }
 
@@ -384,7 +408,7 @@ export const AppointmentService = {
       }
 
       // Pre-validation: Must be PENDING or CONFIRMED
-      if (initialApp.status !== "PENDING" && initialApp.status !== "CONFIRMED") {
+      if (!isOperationalAppointmentStatus(initialApp.status as AppointmentStatus)) {
          throw new Error("NOT_RESCHEDULABLE: Only PENDING or CONFIRMED appointments can be rescheduled");
       }
 
@@ -418,7 +442,7 @@ export const AppointmentService = {
       }
 
       // Validate status / time again inside lock
-      if (app.status !== "PENDING" && app.status !== "CONFIRMED") {
+      if (!isOperationalAppointmentStatus(app.status as AppointmentStatus)) {
          throw new Error("NOT_RESCHEDULABLE: Only PENDING or CONFIRMED appointments can be rescheduled");
       }
       
@@ -452,7 +476,8 @@ export const AppointmentService = {
         serviceId,
         localDate,
         executor: tx,
-        excludeAppointmentId: input.appointmentId
+        excludeAppointmentId: input.appointmentId,
+        serviceDurationMinutes: durationMinutes,
       });
 
       if (availability.reason === "STAFF_NOT_BOOKABLE" || availability.reason === "CLOSED") {
@@ -472,6 +497,12 @@ export const AppointmentService = {
       await tx.execute(
         sql`UPDATE appointments SET start_time = ${newRequestedStartDate}, end_time = ${newEndAt}, updated_at = NOW() WHERE id = ${input.appointmentId}`
       );
+
+      await AppointmentAccessService.refreshExpirationAfterReschedule(tx, {
+        businessId: input.businessId,
+        appointmentId: input.appointmentId,
+        appointmentEndTime: newEndAt,
+      });
 
       return { success: true };
     });
@@ -531,8 +562,8 @@ export const AppointmentService = {
         throw new Error("STALE_APPOINTMENT: Staff changed concurrently");
       }
 
-      const status = app.status as string;
-      if (status !== "PENDING" && status !== "CONFIRMED") {
+      const status = app.status as AppointmentStatus;
+      if (!isOperationalAppointmentStatus(status)) {
         throw new Error("NOT_REASSIGNABLE: Only PENDING or CONFIRMED appointments can be reassigned");
       }
 

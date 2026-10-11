@@ -112,6 +112,7 @@ export interface PublicBookingConfirmation {
   localEndTime: string;
   durationMinutes: number;
   formattedPrice: string;
+  managementPath: string;
 }
 
 export type CreatePublicAppointmentResult =
@@ -131,7 +132,10 @@ export async function createPublicAppointmentAction(params: {
     return { success: true, data: confirmation };
   } catch (error) {
     const e = error as Error;
-    console.error("createPublicAppointmentAction error:", e);
+    console.error("createPublicAppointmentAction failed", {
+      name: e.name,
+      category: e.message?.split(":", 1)[0] || "UNKNOWN",
+    });
     
     if (e.message?.startsWith("VALIDATION_ERROR:")) {
       return { success: false, type: "VALIDATION_ERROR", error: e.message.replace("VALIDATION_ERROR:", "").trim() };

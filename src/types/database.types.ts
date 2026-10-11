@@ -5,75 +5,156 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export type Database = {
   public: {
     Tables: {
+      accounts: {
+        Row: {
+          access_token: string | null;
+          access_token_expires_at: string | null;
+          account_id: string;
+          created_at: string;
+          id: string;
+          id_token: string | null;
+          password: string | null;
+          provider_id: string;
+          refresh_token: string | null;
+          refresh_token_expires_at: string | null;
+          scope: string | null;
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          access_token?: string | null;
+          access_token_expires_at?: string | null;
+          account_id: string;
+          created_at: string;
+          id?: string;
+          id_token?: string | null;
+          password?: string | null;
+          provider_id: string;
+          refresh_token?: string | null;
+          refresh_token_expires_at?: string | null;
+          scope?: string | null;
+          updated_at: string;
+          user_id: string;
+        };
+        Update: {
+          access_token?: string | null;
+          access_token_expires_at?: string | null;
+          account_id?: string;
+          created_at?: string;
+          id?: string;
+          id_token?: string | null;
+          password?: string | null;
+          provider_id?: string;
+          refresh_token?: string | null;
+          refresh_token_expires_at?: string | null;
+          scope?: string | null;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "accounts_user_id_users_id_fk";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      appointment_access_tokens: {
+        Row: {
+          appointment_id: string;
+          business_id: string;
+          created_at: string;
+          expires_at: string;
+          id: string;
+          revoked_at: string | null;
+          token_hash: string;
+        };
+        Insert: {
+          appointment_id: string;
+          business_id: string;
+          created_at?: string;
+          expires_at: string;
+          id?: string;
+          revoked_at?: string | null;
+          token_hash: string;
+        };
+        Update: {
+          appointment_id?: string;
+          business_id?: string;
+          created_at?: string;
+          expires_at?: string;
+          id?: string;
+          revoked_at?: string | null;
+          token_hash?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "appointment_access_tokens_appointment_fkey";
+            columns: ["business_id", "appointment_id"];
+            isOneToOne: false;
+            referencedRelation: "appointments";
+            referencedColumns: ["business_id", "id"];
+          },
+        ];
+      };
       appointments: {
         Row: {
           business_id: string;
+          cancellation_reason: string | null;
           created_at: string;
-          created_by: string | null;
           customer_id: string;
-          customer_note: string | null;
-          end_at: string;
+          end_time: string;
           id: string;
-          internal_note: string | null;
-          service_currency_snapshot: string;
+          notes: string | null;
           service_duration_snapshot: number;
           service_id: string;
           service_name_snapshot: string;
           service_price_snapshot: number;
           source: Database["public"]["Enums"]["appointment_source"];
           staff_id: string;
-          start_at: string;
+          start_time: string;
           status: Database["public"]["Enums"]["appointment_status"];
           updated_at: string;
         };
         Insert: {
           business_id: string;
+          cancellation_reason?: string | null;
           created_at?: string;
-          created_by?: string | null;
           customer_id: string;
-          customer_note?: string | null;
-          end_at: string;
+          end_time: string;
           id?: string;
-          internal_note?: string | null;
-          service_currency_snapshot: string;
+          notes?: string | null;
           service_duration_snapshot: number;
           service_id: string;
           service_name_snapshot: string;
           service_price_snapshot: number;
-          source: Database["public"]["Enums"]["appointment_source"];
+          source?: Database["public"]["Enums"]["appointment_source"];
           staff_id: string;
-          start_at: string;
+          start_time: string;
           status?: Database["public"]["Enums"]["appointment_status"];
           updated_at?: string;
         };
         Update: {
           business_id?: string;
+          cancellation_reason?: string | null;
           created_at?: string;
-          created_by?: string | null;
           customer_id?: string;
-          customer_note?: string | null;
-          end_at?: string;
+          end_time?: string;
           id?: string;
-          internal_note?: string | null;
-          service_currency_snapshot?: string;
+          notes?: string | null;
           service_duration_snapshot?: number;
           service_id?: string;
           service_name_snapshot?: string;
           service_price_snapshot?: number;
           source?: Database["public"]["Enums"]["appointment_source"];
           staff_id?: string;
-          start_at?: string;
+          start_time?: string;
           status?: Database["public"]["Enums"]["appointment_status"];
           updated_at?: string;
         };
         Relationships: [
-          {
-            foreignKeyName: "appointments_business_fkey";
-            columns: ["business_id"];
-            isOneToOne: false;
-            referencedRelation: "businesses";
-            referencedColumns: ["id"];
-          },
           {
             foreignKeyName: "appointments_customer_fkey";
             columns: ["business_id", "customer_id"];
@@ -127,10 +208,17 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: "business_members_business_id_fkey";
+            foreignKeyName: "business_members_business_id_businesses_id_fk";
             columns: ["business_id"];
             isOneToOne: false;
             referencedRelation: "businesses";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "business_members_user_id_users_id_fk";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
             referencedColumns: ["id"];
           },
         ];
@@ -168,7 +256,7 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: "business_working_hours_business_id_fkey";
+            foreignKeyName: "business_working_hours_business_id_businesses_id_fk";
             columns: ["business_id"];
             isOneToOne: false;
             referencedRelation: "businesses";
@@ -186,6 +274,7 @@ export type Database = {
           id: string;
           logo_url: string | null;
           name: string;
+          onboarding_completed_at: string | null;
           phone: string | null;
           slug: string;
           timezone: string;
@@ -200,6 +289,7 @@ export type Database = {
           id?: string;
           logo_url?: string | null;
           name: string;
+          onboarding_completed_at?: string | null;
           phone?: string | null;
           slug: string;
           timezone: string;
@@ -214,12 +304,65 @@ export type Database = {
           id?: string;
           logo_url?: string | null;
           name?: string;
+          onboarding_completed_at?: string | null;
           phone?: string | null;
           slug?: string;
           timezone?: string;
           updated_at?: string;
         };
         Relationships: [];
+      };
+      customer_notes: {
+        Row: {
+          business_id: string;
+          content: string;
+          created_at: string;
+          created_by_business_member_id: string;
+          customer_id: string;
+          id: string;
+          updated_at: string;
+        };
+        Insert: {
+          business_id: string;
+          content: string;
+          created_at?: string;
+          created_by_business_member_id: string;
+          customer_id: string;
+          id?: string;
+          updated_at?: string;
+        };
+        Update: {
+          business_id?: string;
+          content?: string;
+          created_at?: string;
+          created_by_business_member_id?: string;
+          customer_id?: string;
+          id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "customer_notes_business_id_businesses_id_fk";
+            columns: ["business_id"];
+            isOneToOne: false;
+            referencedRelation: "businesses";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "customer_notes_business_member_fkey";
+            columns: ["business_id", "created_by_business_member_id"];
+            isOneToOne: false;
+            referencedRelation: "business_members";
+            referencedColumns: ["business_id", "id"];
+          },
+          {
+            foreignKeyName: "customer_notes_customer_fkey";
+            columns: ["business_id", "customer_id"];
+            isOneToOne: false;
+            referencedRelation: "customers";
+            referencedColumns: ["business_id", "id"];
+          },
+        ];
       };
       customers: {
         Row: {
@@ -228,9 +371,13 @@ export type Database = {
           first_name: string;
           id: string;
           last_name: string | null;
+          merged_at: string | null;
+          merged_by_business_member_id: string | null;
+          merged_into_customer_id: string | null;
           normalized_phone: string;
           notes: string | null;
           phone: string;
+          phone_comparison_key: string;
           updated_at: string;
         };
         Insert: {
@@ -239,9 +386,13 @@ export type Database = {
           first_name: string;
           id?: string;
           last_name?: string | null;
+          merged_at?: string | null;
+          merged_by_business_member_id?: string | null;
+          merged_into_customer_id?: string | null;
           normalized_phone: string;
           notes?: string | null;
           phone: string;
+          phone_comparison_key: string;
           updated_at?: string;
         };
         Update: {
@@ -250,17 +401,118 @@ export type Database = {
           first_name?: string;
           id?: string;
           last_name?: string | null;
+          merged_at?: string | null;
+          merged_by_business_member_id?: string | null;
+          merged_into_customer_id?: string | null;
           normalized_phone?: string;
           notes?: string | null;
           phone?: string;
+          phone_comparison_key?: string;
           updated_at?: string;
         };
         Relationships: [
           {
-            foreignKeyName: "customers_business_id_fkey";
+            foreignKeyName: "customers_business_id_businesses_id_fk";
             columns: ["business_id"];
             isOneToOne: false;
             referencedRelation: "businesses";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "customers_merged_by_business_member_fkey";
+            columns: ["business_id", "merged_by_business_member_id"];
+            isOneToOne: false;
+            referencedRelation: "business_members";
+            referencedColumns: ["business_id", "id"];
+          },
+          {
+            foreignKeyName: "customers_merged_into_customer_fkey";
+            columns: ["business_id", "merged_into_customer_id"];
+            isOneToOne: false;
+            referencedRelation: "customers";
+            referencedColumns: ["business_id", "id"];
+          },
+        ];
+      };
+      platform_admin_audit_logs: {
+        Row: {
+          action: string;
+          actor_user_id: string | null;
+          created_at: string;
+          id: string;
+          metadata: Json | null;
+          platform_admin_id: string | null;
+          target_id: string | null;
+          target_type: string;
+        };
+        Insert: {
+          action: string;
+          actor_user_id?: string | null;
+          created_at?: string;
+          id?: string;
+          metadata?: Json | null;
+          platform_admin_id?: string | null;
+          target_id?: string | null;
+          target_type: string;
+        };
+        Update: {
+          action?: string;
+          actor_user_id?: string | null;
+          created_at?: string;
+          id?: string;
+          metadata?: Json | null;
+          platform_admin_id?: string | null;
+          target_id?: string | null;
+          target_type?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "platform_admin_audit_logs_actor_user_id_users_id_fk";
+            columns: ["actor_user_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "platform_admin_audit_logs_platform_admin_id_platform_admins_id_";
+            columns: ["platform_admin_id"];
+            isOneToOne: false;
+            referencedRelation: "platform_admins";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      platform_admins: {
+        Row: {
+          active: boolean;
+          created_at: string;
+          id: string;
+          role: Database["public"]["Enums"]["platform_admin_role"];
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          active?: boolean;
+          created_at?: string;
+          id?: string;
+          role: Database["public"]["Enums"]["platform_admin_role"];
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          active?: boolean;
+          created_at?: string;
+          id?: string;
+          role?: Database["public"]["Enums"]["platform_admin_role"];
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "platform_admins_user_id_users_id_fk";
+            columns: ["user_id"];
+            isOneToOne: true;
+            referencedRelation: "users";
             referencedColumns: ["id"];
           },
         ];
@@ -301,10 +553,51 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: "services_business_id_fkey";
+            foreignKeyName: "services_business_id_businesses_id_fk";
             columns: ["business_id"];
             isOneToOne: false;
             referencedRelation: "businesses";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      sessions: {
+        Row: {
+          created_at: string;
+          expires_at: string;
+          id: string;
+          ip_address: string | null;
+          token: string;
+          updated_at: string;
+          user_agent: string | null;
+          user_id: string;
+        };
+        Insert: {
+          created_at: string;
+          expires_at: string;
+          id?: string;
+          ip_address?: string | null;
+          token: string;
+          updated_at: string;
+          user_agent?: string | null;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          expires_at?: string;
+          id?: string;
+          ip_address?: string | null;
+          token?: string;
+          updated_at?: string;
+          user_agent?: string | null;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "sessions_user_id_users_id_fk";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
             referencedColumns: ["id"];
           },
         ];
@@ -354,7 +647,7 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: "staff_profiles_business_fkey";
+            foreignKeyName: "staff_profiles_business_id_businesses_id_fk";
             columns: ["business_id"];
             isOneToOne: false;
             referencedRelation: "businesses";
@@ -412,7 +705,7 @@ export type Database = {
           day_of_week: number;
           end_time: string | null;
           id: string;
-          is_closed: boolean;
+          is_working: boolean;
           staff_id: string;
           start_time: string | null;
           updated_at: string;
@@ -423,7 +716,7 @@ export type Database = {
           day_of_week: number;
           end_time?: string | null;
           id?: string;
-          is_closed?: boolean;
+          is_working?: boolean;
           staff_id: string;
           start_time?: string | null;
           updated_at?: string;
@@ -434,7 +727,7 @@ export type Database = {
           day_of_week?: number;
           end_time?: string | null;
           id?: string;
-          is_closed?: boolean;
+          is_working?: boolean;
           staff_id?: string;
           start_time?: string | null;
           updated_at?: string;
@@ -451,44 +744,41 @@ export type Database = {
       };
       time_blocks: {
         Row: {
+          block_type: Database["public"]["Enums"]["time_block_type"];
           business_id: string;
           created_at: string;
-          created_by: string | null;
-          end_at: string;
+          end_time: string;
           id: string;
           reason: string | null;
           staff_id: string | null;
-          start_at: string;
-          type: Database["public"]["Enums"]["time_block_type"];
+          start_time: string;
           updated_at: string;
         };
         Insert: {
+          block_type?: Database["public"]["Enums"]["time_block_type"];
           business_id: string;
           created_at?: string;
-          created_by?: string | null;
-          end_at: string;
+          end_time: string;
           id?: string;
           reason?: string | null;
           staff_id?: string | null;
-          start_at: string;
-          type: Database["public"]["Enums"]["time_block_type"];
+          start_time: string;
           updated_at?: string;
         };
         Update: {
+          block_type?: Database["public"]["Enums"]["time_block_type"];
           business_id?: string;
           created_at?: string;
-          created_by?: string | null;
-          end_at?: string;
+          end_time?: string;
           id?: string;
           reason?: string | null;
           staff_id?: string | null;
-          start_at?: string;
-          type?: Database["public"]["Enums"]["time_block_type"];
+          start_time?: string;
           updated_at?: string;
         };
         Relationships: [
           {
-            foreignKeyName: "time_blocks_business_fkey";
+            foreignKeyName: "time_blocks_business_id_businesses_id_fk";
             columns: ["business_id"];
             isOneToOne: false;
             referencedRelation: "businesses";
@@ -503,17 +793,79 @@ export type Database = {
           },
         ];
       };
+      users: {
+        Row: {
+          created_at: string;
+          email: string;
+          email_verified: boolean;
+          force_password_change: boolean;
+          id: string;
+          image: string | null;
+          name: string;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          email: string;
+          email_verified: boolean;
+          force_password_change?: boolean;
+          id?: string;
+          image?: string | null;
+          name: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          email?: string;
+          email_verified?: boolean;
+          force_password_change?: boolean;
+          id?: string;
+          image?: string | null;
+          name?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      verifications: {
+        Row: {
+          created_at: string | null;
+          expires_at: string;
+          id: string;
+          identifier: string;
+          updated_at: string | null;
+          value: string;
+        };
+        Insert: {
+          created_at?: string | null;
+          expires_at: string;
+          id?: string;
+          identifier: string;
+          updated_at?: string | null;
+          value: string;
+        };
+        Update: {
+          created_at?: string | null;
+          expires_at?: string;
+          id?: string;
+          identifier?: string;
+          updated_at?: string | null;
+          value?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;
     };
     Functions: {
-      [_ in never]: never;
+      customer_phone_comparison_key: { Args: { phone_value: string }; Returns: string };
+      is_valid_timezone: { Args: { tz: string }; Returns: boolean };
     };
     Enums: {
-      appointment_source: "PUBLIC_BOOKING" | "ADMIN" | "STAFF";
-      appointment_status: "BOOKED" | "COMPLETED" | "CANCELLED";
+      appointment_source: "PUBLIC_WEB" | "MANUAL_ADMIN" | "MANUAL_STAFF";
+      appointment_status: "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED" | "NO_SHOW";
       business_member_role: "OWNER" | "ADMIN" | "STAFF";
+      platform_admin_role: "SUPER_ADMIN" | "ADMIN";
       time_block_type: "TIME_OFF" | "BREAK" | "BLOCKED";
     };
     CompositeTypes: {
@@ -630,9 +982,10 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      appointment_source: ["PUBLIC_BOOKING", "ADMIN", "STAFF"],
-      appointment_status: ["BOOKED", "COMPLETED", "CANCELLED"],
+      appointment_source: ["PUBLIC_WEB", "MANUAL_ADMIN", "MANUAL_STAFF"],
+      appointment_status: ["PENDING", "CONFIRMED", "CANCELLED", "COMPLETED", "NO_SHOW"],
       business_member_role: ["OWNER", "ADMIN", "STAFF"],
+      platform_admin_role: ["SUPER_ADMIN", "ADMIN"],
       time_block_type: ["TIME_OFF", "BREAK", "BLOCKED"],
     },
   },

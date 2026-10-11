@@ -1,4 +1,4 @@
-import { pgTable, uuid, integer, numeric, text, timestamp, pgEnum, foreignKey, index } from "drizzle-orm/pg-core";
+import { pgTable, uuid, integer, numeric, text, timestamp, pgEnum, foreignKey, index, unique } from "drizzle-orm/pg-core";
 import { customers } from "./customers";
 import { staffProfiles } from "./staff";
 import { services } from "./services";
@@ -41,6 +41,7 @@ export const appointments = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
+    unique("appointments_business_id_id_key").on(table.businessId, table.id),
     foreignKey({
       columns: [table.businessId, table.customerId],
       foreignColumns: [customers.businessId, customers.id],

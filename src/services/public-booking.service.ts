@@ -609,6 +609,7 @@ export const PublicBookingService = {
     try {
       let appointment;
       let assignedStaffId = staffId;
+      let managementToken: string | undefined;
       
       const staffList = await PublicBookingRepository.getEligibleStaffForService(biz.id, serviceId);
       
@@ -627,11 +628,13 @@ export const PublicBookingService = {
             lastName,
             phone: customerPhone,
           },
+          issueManagementAccess: true,
         });
         appointment = result.appointment;
         assignedStaffId = result.assignedStaffId;
+        managementToken = result.managementToken;
       } else {
-        appointment = await AppointmentService.createAppointment({
+        const result = await AppointmentService.createAppointment({
           businessId: biz.id,
           staffId,
           serviceId,
@@ -641,7 +644,14 @@ export const PublicBookingService = {
             lastName,
             phone: customerPhone,
           },
+          issueManagementAccess: true,
         });
+        appointment = result;
+        managementToken = result.managementToken;
+      }
+
+      if (!managementToken) {
+        throw new Error("APPOINTMENT_ACCESS_ISSUANCE_FAILED");
       }
 
       // Fetch the staff display name
@@ -660,6 +670,7 @@ export const PublicBookingService = {
         localEndTime: localEnd.timeStr,
         durationMinutes: appointment.serviceDurationSnapshot,
         formattedPrice: appointment.servicePriceSnapshot, // Might need proper i18n formatting based on currency, but snapshot is a numeric string
+        managementPath: `/randevu#${managementToken}`,
       };
     } catch (error) {
       if (isCustomerDomainError(error)) {

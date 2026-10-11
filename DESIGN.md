@@ -46,3 +46,9 @@ The color palette uses tailored `oklch` or hex values to represent a clean, high
 - **Cards**: Flat white background, 1px subtle border, very light shadow. Clean separation.
 - **Buttons**: Primary buttons are dark (high contrast). Secondary buttons are outlined or muted.
 - **Forms**: Clearly defined inputs with borders. Labels must be bold or distinct. Focus rings (`ring-offset-2`, `ring-primary`) must be visible for accessibility.
+
+## 7. Public Appointment Management
+- The appointment summary remains the visual anchor; management actions sit below it and never resemble a second booking checkout.
+- `Randevu Saatini Değiştir` is a normal primary management action. `Randevuyu İptal Et` remains a visually distinct destructive action.
+- Rescheduling uses a horizontally scrollable mobile date ribbon, a native extended-date affordance, 48px-or-larger time choices, and a deliberate old-versus-new comparison before confirmation.
+- Server-derived empty, stale-slot, ineligible, pending, and success states use concise Turkish messages with live-region semantics. No internal identifiers or policy details appear in the interface.

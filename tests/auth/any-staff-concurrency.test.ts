@@ -8,7 +8,6 @@ let pgServer: any;
 let db: any;
 let PublicBookingService: any;
 let AppointmentService: any;
-let getPublicAnyStaffAvailabilityAction: any;
 let createPublicAppointmentAction: any;
 
 const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
@@ -29,7 +28,6 @@ before(async () => {
   const appSvc = await import("../../src/services/appointment.service");
   AppointmentService = appSvc.AppointmentService;
   const actionsLb = await import("../../src/actions/public-booking.actions");
-  getPublicAnyStaffAvailabilityAction = actionsLb.getPublicAnyStaffAvailabilityAction;
   createPublicAppointmentAction = actionsLb.createPublicAppointmentAction;
 
   // Insert Business
@@ -113,14 +111,6 @@ describe("TASK 009A.3A: Transactional Any Staff Concurrency Hardening", () => {
     // Both staff A and B are free at 09:00 local (06:00 UTC)
     const startAt = "2026-10-12T06:00:00.000Z";
     
-    // Debug
-    const avail = await getPublicAnyStaffAvailabilityAction({
-      slug: "concurrency-barber",
-      serviceId: svcHaircut,
-      localDate: "2026-10-12"
-    });
-    console.log("AVAILABILITY:", JSON.stringify(avail, null, 2));
-
     // We fire two concurrent Any Staff requests
     const res = await Promise.all([
       createPublicAppointmentAction({

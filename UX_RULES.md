@@ -67,3 +67,14 @@ The application is engineered strictly **mobile-first**.
 3. **Typography Scaling**:
    - Mobile: Headers `1.5rem` to `1.75rem` (`text-2xl` to `text-3xl`), body `0.875rem` (`text-sm`).
    - Desktop: Headers expand to `2.25rem` (`text-4xl`), body to `1rem` (`text-base`).
+
+---
+
+## 5. Public Appointment Rescheduling
+
+1. Show `Randevu Saatini Değiştir` only when the secure management DTO says the current appointment is eligible; the server still revalidates every mutation.
+2. Keep the assigned service and staff visible but non-editable. Never display staff/service selectors or imply that `Fark Etmez` assignment will run again.
+3. Date and slot options must be keyboard accessible, expose selected state programmatically, retain visible focus, and meet the 44px touch-target minimum.
+4. Before mutation, compare `Mevcut Randevu` and `Yeni Randevu` date/start/end values and require explicit `Randevuyu Değiştir` confirmation. `Vazgeç` and Escape close the dialog without mutation.
+5. Pending state disables conflicting reschedule/cancel controls and announces `Randevu Değiştiriliyor...`. Success and error feedback use polite live regions.
+6. A stale slot is never replaced automatically. Keep the old schedule, refresh current truth/slots, and ask the customer to choose again.

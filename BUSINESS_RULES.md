@@ -82,6 +82,9 @@
 | Manage Time Blocks | Yes | Yes | Yes (own blocks) | No |
 | Manage Customers (CRM Directory, Details, Notes) | Yes | Yes | No (Lookup only for booking) | No |
 | Review & Merge Duplicate Customers | Yes | Yes | No | No |
+| View Own Appointment Through Secret Link | No tenant role required | No tenant role required | No tenant role required | Yes, valid capability only |
+| Cancel Own Future Appointment Through Secret Link | No tenant role required | No tenant role required | No tenant role required | Yes, valid capability only |
+| Reschedule Own Future Appointment Through Secret Link | No tenant role required | No tenant role required | No tenant role required | Yes, valid capability only |
 
 ---
 
@@ -416,3 +419,50 @@
 6. Merge never updates `appointments.customer_id`, reassigns `customer_notes.customer_id`, or deletes customer rows.
 7. Direct profile mutation of an alias is rejected with a typed domain outcome; authorized alias detail routes redirect to the editable canonical profile.
 8. `normalized_phone` remains the operational identity field. `phone_comparison_key` is non-unique and serves duplicate eligibility and future alias resolution only.
+
+---
+
+## 16. Public Appointment Management Access Rules (TASK 014A)
+
+1. Customers remain accountless. Possession of a valid opaque `/randevu#<token>` capability URL is the sole authority for the read-only public appointment view. The fragment convention keeps the raw secret out of HTTP access logs and referrer headers; it is removed from browser history immediately after capture.
+2. Public booking generates at least 256 bits of cryptographic entropy and persists only the SHA-256 token hash. Raw tokens must never be stored or logged.
+3. Specific-staff and `Fark Etmez` bookings create the appointment and access token atomically. A token write failure cannot produce a successful or partially committed public booking.
+4. Access expires at the appointment end time plus 24 hours. Valid links may display `CANCELLED`, `COMPLETED`, or `NO_SHOW` appointments until that expiry. Internal and public rescheduling move every token expiry to the new end time plus 24 hours without reviving revoked tokens.
+5. A token with `revoked_at IS NOT NULL` is invalid. A fresh token may be issued without automatically revoking other active tokens for the appointment.
+6. Historical and manual appointments receive no unrecoverable migration-generated token. A server-only primitive may issue a fresh token for an existing operational appointment when a trusted future delivery channel exists.
+7. Missing, malformed, unknown, expired, and revoked tokens return the same public message: `Bu randevu bağlantısı geçersiz veya artık kullanılamıyor.`
+8. The public DTO is limited to the business name, service snapshots, assigned staff display name, business-timezone date/time, snapshot duration/price, currency, and Turkish appointment status.
+9. Public management must not expose database IDs, phone/contact PII, appointment notes, customer notes, CRM history, customer merge lineage, staff private data, or business memberships.
+10. Capability responses are private/no-store, noindex/nofollow/noarchive, and `no-referrer`. Tokens are not sent to analytics or unrelated third parties.
+11. TASK 014A established the read-only foundation; cancellation and rescheduling are governed exclusively by the later TASK 014B/014C rules below.
+
+---
+
+## 17. Public Appointment Cancellation Rules (TASK 014B)
+
+1. A valid, unexpired, unrevoked appointment capability is the sole public cancellation authority. Browser-supplied appointment, business, and customer IDs grant no authority.
+2. Public cancellation is allowed only for `PENDING` or `CONFIRMED` appointments and only while authoritative server time is strictly earlier than `start_time`. At or after the start instant it is forbidden.
+3. V1 has no configurable cancellation-notice window. The centralized policy is the future extension point for such a rule.
+4. Cancellation sets the durable appointment status to `CANCELLED` and lets the existing `updated_at` trigger record mutation time. It never deletes an appointment or changes customer, staff, service, start/end, snapshots, notes, or `cancellation_reason`.
+5. Repeated equivalent cancellation is idempotent: an already `CANCELLED` appointment returns a safe cancelled result without another lifecycle change. `COMPLETED` and `NO_SHOW` are terminal and cannot be publicly cancelled.
+6. Mutation uses one transaction and the established staff-then-appointment lock hierarchy. Capability, current status, and current time are revalidated after waiting for locks.
+7. Public cancellation serializes with internal status changes and rescheduling. A committed cancellation cannot be resurrected by rescheduling; a committed reschedule is re-read before public eligibility is decided.
+8. `CANCELLED` remains non-blocking in the shared availability engine. Cancelling naturally releases capacity without deleting rows or inventing separate slot state.
+9. Cancellation never revokes management tokens. The same token and all other active tokens remain readable through normal expiry, show `İptal Edildi`, and return `canCancel = false`.
+10. Cancellation adds no cancellation reason, CRM note, appointment-note mutation, customer account, or notification; public rescheduling is governed separately by TASK 014C.
+11. Invalid capabilities retain the TASK 014A generic link state. A valid capability whose appointment became ineligible receives only `Bu randevu artık iptal edilemiyor.`
+
+---
+
+## 18. Public Appointment Rescheduling Rules (TASK 014C)
+
+1. A valid, unexpired, unrevoked appointment capability is the sole public rescheduling and reschedule-availability authority. Browser-supplied tenant or entity IDs, duration, service, and staff grant no authority.
+2. Rescheduling is allowed only for `PENDING` or `CONFIRMED`, strictly before the current appointment start, while the business is active/onboarded and the assigned staff/service relationship remains publicly bookable with a complete effective schedule.
+3. Public rescheduling changes date/time only. Status, concrete staff, service, customer, source, notes, cancellation reason, and every service snapshot remain unchanged. A prior `Fark Etmez` booking is never reassigned.
+4. Slot length comes from `service_duration_snapshot`, not a later catalog edit. The shared availability engine enforces business/custom hours, staff blocks, current time, booking interval, and other appointments while excluding the current appointment itself.
+5. A displayed slot is advisory. Mutation locks staff, appointment, and capability in the established order, then revalidates capability, lifecycle, current public eligibility, and exact slot availability from server truth.
+6. Selecting the unchanged current start is a safe no-op. A slot taken before confirmation leaves the old schedule untouched and never selects an alternative automatically.
+7. Successful rescheduling preserves status and atomically refreshes every token expiry to the new end plus 24 hours. Active tokens observe the new schedule; revoked tokens remain revoked.
+8. Cancellation and all scheduling writers serialize through compatible locks. Cancellation cannot be undone by a reschedule, and competing scheduling operations cannot produce double booking or mismatched start/end values.
+9. The public DTO exposes only localized appointment presentation, `canCancel`, `canReschedule`, and minimal server-derived slots. It never exposes IDs, token metadata, CRM/appointment notes, merge lineage, or private staff/member records.
+10. V1 has no configurable rescheduling notice window, staff switch, service switch, `Fark Etmez` reassignment, customer account, notification, cancellation reason, billing, loyalty, or marketing behavior.

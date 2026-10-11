@@ -4,7 +4,8 @@ import {
   getOverlappingConflicts,
   getEligibleStaffForAnyStaffAvailability,
   getBatchEffectiveSchedules,
-  getBatchOverlappingConflicts
+  getBatchOverlappingConflicts,
+  hasCompleteEffectiveSchedule,
 } from "@/repositories/availability.repository";
 import {
   parseDateTimeInBusinessTimezone,
@@ -41,6 +42,45 @@ export interface AnyStaffAvailabilityResult {
   localDate: string;
   timezone: string;
   slots: AvailabilitySlot[];
+}
+
+export async function isStaffPublicSchedulingEligible({
+  businessId,
+  staffId,
+  serviceId,
+  executor = db,
+}: {
+  businessId: string;
+  staffId: string;
+  serviceId: string;
+  executor?: DbExecutor;
+}): Promise<boolean> {
+  const inputs = await getAvailabilityInputs(
+    businessId,
+    staffId,
+    serviceId,
+    executor
+  );
+
+  if (
+    !inputs ||
+    !inputs.business.active ||
+    !inputs.business.onboardingCompletedAt ||
+    !inputs.member.active ||
+    !inputs.staffProfile.active ||
+    !inputs.staffProfile.publicBookingEnabled ||
+    !inputs.service.active ||
+    !inputs.isAssigned
+  ) {
+    return false;
+  }
+
+  return hasCompleteEffectiveSchedule(
+    businessId,
+    staffId,
+    inputs.staffProfile.usesBusinessHours,
+    executor
+  );
 }
 
 export function computeSlotsForStaff({
@@ -151,6 +191,7 @@ export async function getStaffAvailability({
   localDate,
   referenceNow,
   excludeAppointmentId,
+  serviceDurationMinutes,
   context = "PUBLIC",
   executor = db,
 }: {
@@ -160,6 +201,7 @@ export async function getStaffAvailability({
   localDate: string; // YYYY-MM-DD
   referenceNow?: Date;
   excludeAppointmentId?: string;
+  serviceDurationMinutes?: number;
   context?: "PUBLIC" | "INTERNAL";
   executor?: DbExecutor;
 }): Promise<AvailabilityResult> {
@@ -173,13 +215,23 @@ export async function getStaffAvailability({
     throw new Error("Invalid request: service does not belong to business");
   }
 
+  const effectiveDurationMinutes =
+    serviceDurationMinutes ?? inputs.service.durationMinutes;
+  if (
+    !Number.isInteger(effectiveDurationMinutes) ||
+    effectiveDurationMinutes <= 0 ||
+    effectiveDurationMinutes > 1440
+  ) {
+    throw new Error("Invalid service duration");
+  }
+
   const baseResult: AvailabilityResult = {
     businessId,
     staffId,
     serviceId,
     localDate,
     timezone: inputs.business.timezone,
-    serviceDurationMinutes: inputs.service.durationMinutes,
+    serviceDurationMinutes: effectiveDurationMinutes,
     bookingIntervalMinutes: inputs.business.bookingIntervalMinutes,
     slots: [],
   };
@@ -244,7 +296,7 @@ export async function getStaffAvailability({
     localDate,
     businessTimezone: inputs.business.timezone,
     bookingIntervalMinutes: inputs.business.bookingIntervalMinutes,
-    serviceDurationMinutes: inputs.service.durationMinutes,
+    serviceDurationMinutes: effectiveDurationMinutes,
     workingEndInstant,
     now,
     blocks: conflicts.blocks,
