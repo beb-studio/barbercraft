@@ -12,6 +12,7 @@ import {
   canPubliclyCancelAppointment,
   canPubliclyRescheduleAppointment,
 } from "@/lib/appointment-lifecycle";
+import { getBusinessBookingPolicy } from "@/lib/business-booking-policy";
 import { AppointmentAccessRepository } from "@/repositories/appointment-access.repository";
 import {
   getStaffAvailability,
@@ -147,6 +148,7 @@ async function toManagementView(
       serviceId: row.serviceId,
       executor,
     }));
+  const policy = getBusinessBookingPolicy(row);
 
   return {
     businessName: row.businessName,
@@ -168,12 +170,14 @@ async function toManagementView(
       status: row.status,
       startsAt: row.startTime,
       referenceNow,
+      policy,
     }).allowed,
     canReschedule: canPubliclyRescheduleAppointment({
       status: row.status,
       startsAt: row.startTime,
       referenceNow,
       publicSchedulingEligible,
+      policy,
     }).allowed,
   };
 }
@@ -303,10 +307,18 @@ export const AppointmentAccessService = {
         return { outcome: "INVALID_CAPABILITY" } as const;
       }
 
+      const currentRow =
+        await AppointmentAccessRepository.findManagementViewByHash(
+          tokenHash,
+          tx
+        );
+      if (!currentRow) return { outcome: "INVALID_CAPABILITY" } as const;
+
       const decision = canPubliclyCancelAppointment({
         status: appointment.status,
         startsAt: appointment.startTime,
         referenceNow: mutationNow,
+        policy: getBusinessBookingPolicy(currentRow),
       });
 
       let changed = false;
@@ -318,15 +330,9 @@ export const AppointmentAccessService = {
         );
         if (!changed) return { outcome: "INVALID_CAPABILITY" } as const;
       } else if (decision.reason !== "ALREADY_CANCELLED") {
-        const currentView =
-          await AppointmentAccessRepository.findManagementViewByHash(
-            tokenHash,
-            tx
-          );
-        if (!currentView) return { outcome: "INVALID_CAPABILITY" } as const;
         return {
           outcome: "NOT_CANCELLABLE",
-          appointment: await toManagementView(currentView, mutationNow, tx),
+          appointment: await toManagementView(currentRow, mutationNow, tx),
         } as const;
       }
 
@@ -384,6 +390,7 @@ export const AppointmentAccessService = {
       startsAt: row.startTime,
       referenceNow,
       publicSchedulingEligible,
+      policy: getBusinessBookingPolicy(row),
     });
     const appointment = await toManagementView(
       row,
@@ -521,19 +528,20 @@ export const AppointmentAccessService = {
           serviceId: appointment.serviceId,
           executor: tx,
         });
-      const decision = canPubliclyRescheduleAppointment({
-        status: appointment.status,
-        startsAt: appointment.startTime,
-        referenceNow: mutationNow,
-        publicSchedulingEligible,
-      });
-
       const currentRow =
         await AppointmentAccessRepository.findManagementViewByHash(
           tokenHash,
           tx
         );
       if (!currentRow) return { outcome: "INVALID_CAPABILITY" } as const;
+
+      const decision = canPubliclyRescheduleAppointment({
+        status: appointment.status,
+        startsAt: appointment.startTime,
+        referenceNow: mutationNow,
+        publicSchedulingEligible,
+        policy: getBusinessBookingPolicy(currentRow),
+      });
       const currentView = await toManagementView(
         currentRow,
         mutationNow,

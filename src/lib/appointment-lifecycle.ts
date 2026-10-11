@@ -1,4 +1,8 @@
 import type { AppointmentStatus } from "@/db/schema/appointments";
+import {
+  hasRequiredPublicNotice,
+  type BusinessBookingPolicy,
+} from "@/lib/business-booking-policy";
 
 const APPOINTMENT_STATUS_TRANSITIONS: Readonly<
   Partial<Record<AppointmentStatus, readonly AppointmentStatus[]>>
@@ -37,6 +41,7 @@ export function canPubliclyCancelAppointment(input: {
   status: AppointmentStatus;
   startsAt: Date;
   referenceNow: Date;
+  policy: BusinessBookingPolicy;
 }): PublicCancellationDecision {
   if (input.status === "CANCELLED") {
     return { allowed: false, reason: "ALREADY_CANCELLED" };
@@ -46,7 +51,13 @@ export function canPubliclyCancelAppointment(input: {
     return { allowed: false, reason: "STATUS_NOT_CANCELLABLE" };
   }
 
-  if (input.referenceNow.getTime() >= input.startsAt.getTime()) {
+  if (
+    !hasRequiredPublicNotice({
+      startsAt: input.startsAt,
+      referenceNow: input.referenceNow,
+      noticeMinutes: input.policy.cancellationNoticeMinutes,
+    })
+  ) {
     return { allowed: false, reason: "TOO_LATE" };
   }
 
@@ -72,12 +83,19 @@ export function canPubliclyRescheduleAppointment(input: {
   startsAt: Date;
   referenceNow: Date;
   publicSchedulingEligible: boolean;
+  policy: BusinessBookingPolicy;
 }): PublicRescheduleDecision {
   if (!isOperationalAppointmentStatus(input.status)) {
     return { allowed: false, reason: "STATUS_NOT_RESCHEDULABLE" };
   }
 
-  if (input.referenceNow.getTime() >= input.startsAt.getTime()) {
+  if (
+    !hasRequiredPublicNotice({
+      startsAt: input.startsAt,
+      referenceNow: input.referenceNow,
+      noticeMinutes: input.policy.rescheduleNoticeMinutes,
+    })
+  ) {
     return { allowed: false, reason: "TOO_LATE" };
   }
 

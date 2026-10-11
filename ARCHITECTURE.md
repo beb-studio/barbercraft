@@ -380,8 +380,8 @@ drizzle/
 
 ### 3.18 Secure Public Appointment Cancellation (TASK 014B)
 - **Central lifecycle policy**:
-  - `canPubliclyCancelAppointment` is the only public-cancellation eligibility rule. It permits `PENDING` or `CONFIRMED` only while authoritative server time is strictly before `appointments.start_time`.
-  - `CANCELLED` is idempotent for equivalent repeated capability submissions. `COMPLETED`, `NO_SHOW`, and started appointments remain ineligible. No configurable notice window or cancellation reason exists in V1.
+  - `canPubliclyCancelAppointment` is the only public-cancellation eligibility rule. It permits `PENDING` or `CONFIRMED` only while the appointment remains outside the current tenant `cancellation_notice_minutes` cutoff; a zero cutoff preserves strict pre-start behavior.
+  - `CANCELLED` is idempotent for equivalent repeated capability submissions. `COMPLETED`, `NO_SHOW`, and appointments inside the current tenant cancellation-notice window remain ineligible. No cancellation reason exists in V1.
 - **Capability-authorized mutation**:
   - The browser submits only the retained raw fragment capability. It never supplies appointment, customer, or business IDs as authority. The server validates syntax, hashes the token, derives its tenant/appointment, and returns only sanitized management DTOs/outcomes.
   - Mutation preserves the existing lock hierarchy: initial capability lookup, `staff_profiles` row lock, appointment row lock/re-read, then capability row lock/revalidation. Status/time are checked again using mutation-time server truth before setting only `status = CANCELLED` (with the existing `updated_at` trigger).
@@ -408,4 +408,18 @@ drizzle/
 - **Concurrency and UX**:
   - Public/public reschedules, public booking, internal rescheduling, and cancellation serialize on the same staff/appointment locks. A cancelled appointment cannot be resurrected, and competing writers cannot create a mixed start/end pair or double booking.
   - `/randevu` offers a date/slot picker and explicit old-versus-new review. Stale slots remain at the old schedule and receive a sanitized recovery message; changed lifecycle or scheduling eligibility fails closed. Cancellation remains visually separate and destructive.
-  - V1 does not allow changing staff or service, does not rerun `Fark Etmez`, and does not introduce customer accounts, notifications, or a configurable notice window.
+  - V1 does not allow changing staff or service, does not rerun `Fark Etmez`, and does not introduce customer accounts or notifications.
+
+### 3.20 Business Booking Policy Foundation (TASK 015A)
+- **Tenant-owned configuration**:
+  - The four policy values live directly on `businesses`, which is their natural aggregate and is already loaded on every public scheduling path. A separate one-row child table would add joins and lifecycle states without adding ownership or isolation value.
+  - Compatibility defaults are `minimum_booking_lead_minutes = 0`, `maximum_advance_booking_days = NULL` (unlimited), `cancellation_notice_minutes = 0`, and `reschedule_notice_minutes = 0`.
+  - Database checks and `validateBusinessBookingPolicy` enforce safe integer ranges. Minute fields allow `0..525600`; maximum advance is `NULL` or `1..730` days.
+- **Central policy semantics**:
+  - `canPubliclyBookAt` compares minimum lead as an absolute instant and maximum advance as an inclusive business-local calendar date. `30` therefore includes the local date thirty days after the business-local current date.
+  - Cancellation and reschedule notice arithmetic is centralized. Positive notice windows allow the exact cutoff; a zero window deliberately preserves TASK 014's strict `now < start` behavior.
+  - Policies are current configuration, not appointment snapshots. Changing policy never rewrites appointments, service snapshots, tokens, customers, or CRM data; later public actions use the newest committed tenant values.
+- **Trusted integration boundary**:
+  - The shared availability engine loads policy from the authoritative business row and filters only `PUBLIC` slots. Specific-staff, `Fark Etmez`, final booking transactions, capability availability, and public reschedule mutation all use the same rule.
+  - Public cancellation and current-appointment reschedule eligibility reload policy inside their locked transaction. Reschedule target slots must also satisfy current public lead/horizon policy.
+  - Manual appointment creation, authenticated internal availability, and internal rescheduling explicitly use `INTERNAL` context and remain outside customer-facing lead, horizon, and notice policy.

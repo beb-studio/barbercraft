@@ -31,6 +31,7 @@ let AppointmentAccessService: any;
 let AppointmentService: any;
 let getStaffAvailability: any;
 let canPubliclyCancelAppointment: any;
+let DEFAULT_BUSINESS_BOOKING_POLICY: any;
 let cancelAppointmentAccessAction: any;
 
 function futureAt(dayOffset: number, hour = 10): Date {
@@ -105,6 +106,9 @@ before(async () => {
   ));
   ({ canPubliclyCancelAppointment } = await import(
     "../../src/lib/appointment-lifecycle"
+  ));
+  ({ DEFAULT_BUSINESS_BOOKING_POLICY } = await import(
+    "../../src/lib/business-booking-policy"
   ));
   ({ cancelAppointmentAccessAction } = await import(
     "../../src/actions/appointment-access.actions"
@@ -255,25 +259,25 @@ describe("TASK 014B public cancellation policy and capability", { concurrency: f
     const before = new Date(start.getTime() - 1);
 
     assert.deepEqual(
-      canPubliclyCancelAppointment({ status: "PENDING", startsAt: start, referenceNow: before }),
+      canPubliclyCancelAppointment({ status: "PENDING", startsAt: start, referenceNow: before, policy: DEFAULT_BUSINESS_BOOKING_POLICY }),
       { allowed: true }
     );
     assert.deepEqual(
-      canPubliclyCancelAppointment({ status: "CONFIRMED", startsAt: start, referenceNow: before }),
+      canPubliclyCancelAppointment({ status: "CONFIRMED", startsAt: start, referenceNow: before, policy: DEFAULT_BUSINESS_BOOKING_POLICY }),
       { allowed: true }
     );
     assert.equal(
-      canPubliclyCancelAppointment({ status: "CANCELLED", startsAt: start, referenceNow: before }).reason,
+      canPubliclyCancelAppointment({ status: "CANCELLED", startsAt: start, referenceNow: before, policy: DEFAULT_BUSINESS_BOOKING_POLICY }).reason,
       "ALREADY_CANCELLED"
     );
     for (const status of ["COMPLETED", "NO_SHOW"] as const) {
       assert.equal(
-        canPubliclyCancelAppointment({ status, startsAt: start, referenceNow: before }).reason,
+        canPubliclyCancelAppointment({ status, startsAt: start, referenceNow: before, policy: DEFAULT_BUSINESS_BOOKING_POLICY }).reason,
         "STATUS_NOT_CANCELLABLE"
       );
     }
     assert.equal(
-      canPubliclyCancelAppointment({ status: "CONFIRMED", startsAt: start, referenceNow: start }).reason,
+      canPubliclyCancelAppointment({ status: "CONFIRMED", startsAt: start, referenceNow: start, policy: DEFAULT_BUSINESS_BOOKING_POLICY }).reason,
       "TOO_LATE"
     );
     assert.equal(
@@ -281,6 +285,7 @@ describe("TASK 014B public cancellation policy and capability", { concurrency: f
         status: "PENDING",
         startsAt: start,
         referenceNow: new Date(start.getTime() + 1),
+        policy: DEFAULT_BUSINESS_BOOKING_POLICY,
       }).reason,
       "TOO_LATE"
     );

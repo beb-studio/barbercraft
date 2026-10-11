@@ -16,6 +16,10 @@ import { getDay } from "date-fns";
 import { DbExecutor, db } from "@/db";
 import { businesses, services } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import {
+  canPubliclyBookAt,
+  getBusinessBookingPolicy,
+} from "@/lib/business-booking-policy";
 
 export interface AvailabilitySlot {
   startAt: string; // ISO string
@@ -303,6 +307,18 @@ export async function getStaffAvailability({
     appointments: conflicts.appointments
   });
 
+  if (context === "PUBLIC") {
+    const policy = getBusinessBookingPolicy(inputs.business);
+    baseResult.slots = baseResult.slots.filter((slot) =>
+      canPubliclyBookAt({
+        requestedStart: new Date(slot.startAt),
+        referenceNow: now,
+        businessTimezone: inputs.business.timezone,
+        policy,
+      }).allowed
+    );
+  }
+
   if (baseResult.slots.length === 0) {
     baseResult.reason = "NO_AVAILABLE_SLOTS";
   }
@@ -386,6 +402,7 @@ export async function getAnyStaffAvailability({
   const conflictsData = await getBatchOverlappingConflicts(businessId, workingStaffIds, startOfDayInstant, endOfDayInstant, executor);
 
   const now = referenceNow ?? new Date();
+  const policy = getBusinessBookingPolicy(biz);
   const allSlots: AvailabilitySlot[] = [];
 
   for (const staffId of workingStaffIds) {
@@ -412,7 +429,16 @@ export async function getAnyStaffAvailability({
       appointments: staffAppts
     });
 
-    allSlots.push(...staffSlots);
+    allSlots.push(
+      ...staffSlots.filter((slot) =>
+        canPubliclyBookAt({
+          requestedStart: new Date(slot.startAt),
+          referenceNow: now,
+          businessTimezone: biz.timezone,
+          policy,
+        }).allowed
+      )
+    );
   }
 
   // Deduplicate by startAt

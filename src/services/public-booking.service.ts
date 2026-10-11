@@ -707,10 +707,12 @@ export const PublicBookingService = {
     slug,
     serviceId,
     localDate,
+    referenceNow,
   }: {
     slug: string;
     serviceId: string;
     localDate: string; // YYYY-MM-DD
+    referenceNow?: Date;
   }): Promise<PublicAvailabilityResult> {
     if (!DATE_REGEX.test(localDate)) {
       return {
@@ -751,7 +753,7 @@ export const PublicBookingService = {
     }
 
     // Must prevent looking at past days locally
-    const businessLocalToday = getBusinessLocalToday(biz.timezone);
+    const businessLocalToday = getBusinessLocalToday(biz.timezone, referenceNow);
     if (localDate < businessLocalToday) {
       return {
         success: false,
@@ -765,6 +767,7 @@ export const PublicBookingService = {
         businessId: biz.id,
         serviceId: serviceId,
         localDate,
+        referenceNow,
       });
 
       return {

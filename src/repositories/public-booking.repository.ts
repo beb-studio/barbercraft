@@ -26,6 +26,10 @@ export interface PublicBusinessRow {
   timezone: string;
   active: boolean;
   onboardingCompletedAt: Date | null;
+  minimumBookingLeadMinutes: number;
+  maximumAdvanceBookingDays: number | null;
+  cancellationNoticeMinutes: number;
+  rescheduleNoticeMinutes: number;
 }
 
 export interface PublicServiceRow {
@@ -63,6 +67,10 @@ export const PublicBookingRepository = {
         timezone: businesses.timezone,
         active: businesses.active,
         onboardingCompletedAt: businesses.onboardingCompletedAt,
+        minimumBookingLeadMinutes: businesses.minimumBookingLeadMinutes,
+        maximumAdvanceBookingDays: businesses.maximumAdvanceBookingDays,
+        cancellationNoticeMinutes: businesses.cancellationNoticeMinutes,
+        rescheduleNoticeMinutes: businesses.rescheduleNoticeMinutes,
       })
       .from(businesses)
       .where(eq(businesses.slug, slug))

@@ -184,6 +184,10 @@ export async function bootstrapQA(credentials: QACredentials): Promise<QABootstr
         timezone: "Europe/Istanbul",
         currency: "TRY",
         bookingIntervalMinutes: 15,
+        minimumBookingLeadMinutes: 0,
+        maximumAdvanceBookingDays: null,
+        cancellationNoticeMinutes: 0,
+        rescheduleNoticeMinutes: 0,
         updatedAt: new Date(),
       })
       .where(eq(businesses.id, existingBiz.id));
@@ -196,6 +200,10 @@ export async function bootstrapQA(credentials: QACredentials): Promise<QABootstr
         timezone: "Europe/Istanbul",
         currency: "TRY",
         bookingIntervalMinutes: 15,
+        minimumBookingLeadMinutes: 0,
+        maximumAdvanceBookingDays: null,
+        cancellationNoticeMinutes: 0,
+        rescheduleNoticeMinutes: 0,
         active: true,
         onboardingCompletedAt: new Date(),
       })

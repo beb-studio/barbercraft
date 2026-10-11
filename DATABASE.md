@@ -48,8 +48,13 @@ System user accounts.
 - `timezone` (text, NOT NULL, checked via `is_valid_timezone()`)
 - `currency` (text, NOT NULL, ISO code e.g. `TRY`, `USD`, `EUR`)
 - `booking_interval_minutes` (integer, default 15, checked `IN (5, 10, 15, 20, 30, 60)`)
+- `minimum_booking_lead_minutes` (integer, default 0, NOT NULL, checked `0..525600`)
+- `maximum_advance_booking_days` (integer, nullable/unlimited, checked `1..730` when populated)
+- `cancellation_notice_minutes` (integer, default 0, NOT NULL, checked `0..525600`)
+- `reschedule_notice_minutes` (integer, default 0, NOT NULL, checked `0..525600`)
 - `active` (boolean, default true, NOT NULL)
 - `created_at`, `updated_at` (timestamptz, NOT NULL)
+- Policy semantics: lead time is an exact-instant public booking boundary; maximum advance is an inclusive business-local calendar-date boundary. Current policy controls later public actions and is not snapshotted onto appointments. `NULL` maximum advance preserves unlimited historical behavior. Internal/manual scheduling does not consume these public-only limits.
 
 ### 3.3 `business_members`
 Connects users to businesses with role assignments.
