@@ -249,11 +249,14 @@ describe("Appointment access token service", { concurrency: false }, () => {
       new Date("2030-01-08T07:15:00Z")
     );
     assert.deepEqual(Object.keys(resolved).sort(), [
+      "businessLocalToday",
       "businessName",
       "canCancel",
+      "canReschedule",
       "currency",
       "dateLabel",
       "durationMinutes",
+      "localDate",
       "localEndTime",
       "localStartTime",
       "price",
@@ -266,6 +269,7 @@ describe("Appointment access token service", { concurrency: false }, () => {
     assert.equal(resolved.staffDisplayName, "Ayşe Usta");
     assert.equal(resolved.status, "CONFIRMED");
     assert.equal(resolved.canCancel, false);
+    assert.equal(resolved.canReschedule, false);
     assert.equal(resolved.notes, undefined);
     assert.equal(resolved.customerId, undefined);
     assert.equal(resolved.appointmentId, undefined);

@@ -618,6 +618,6 @@ describe("TASK 014B management UX contract", () => {
     assert.match(source, /aria-busy/);
     assert.match(source, /appointment\.canCancel/);
     assert.match(actionSource, /Randevunuz iptal edildi\./);
-    assert.doesNotMatch(source, /Yeniden Planla|cancellationReason|textarea/);
+    assert.doesNotMatch(source, /cancellationReason|textarea/);
   });
 });

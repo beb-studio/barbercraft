@@ -52,3 +52,38 @@ export function canPubliclyCancelAppointment(input: {
 
   return { allowed: true };
 }
+
+export type PublicRescheduleDecision =
+  | { allowed: true }
+  | {
+      allowed: false;
+      reason:
+        | "STATUS_NOT_RESCHEDULABLE"
+        | "TOO_LATE"
+        | "PUBLIC_SCHEDULING_UNAVAILABLE";
+    };
+
+/**
+ * Authoritative V1 public reschedule policy. Public scheduling eligibility is
+ * derived from current trusted business/staff/service state by the caller.
+ */
+export function canPubliclyRescheduleAppointment(input: {
+  status: AppointmentStatus;
+  startsAt: Date;
+  referenceNow: Date;
+  publicSchedulingEligible: boolean;
+}): PublicRescheduleDecision {
+  if (!isOperationalAppointmentStatus(input.status)) {
+    return { allowed: false, reason: "STATUS_NOT_RESCHEDULABLE" };
+  }
+
+  if (input.referenceNow.getTime() >= input.startsAt.getTime()) {
+    return { allowed: false, reason: "TOO_LATE" };
+  }
+
+  if (!input.publicSchedulingEligible) {
+    return { allowed: false, reason: "PUBLIC_SCHEDULING_UNAVAILABLE" };
+  }
+
+  return { allowed: true };
+}

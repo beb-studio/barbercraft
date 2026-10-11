@@ -10,13 +10,15 @@ import {
   businessWorkingHours,
   staffWorkingHours,
 } from "@/db/schema";
-import { and, eq, lt, gt, ne, inArray } from "drizzle-orm";
+import { and, eq, lt, gt, ne, inArray, sql } from "drizzle-orm";
 import { DbExecutor } from "@/db";
 export interface AvailabilityInputs {
   business: {
     id: string;
     timezone: string;
     bookingIntervalMinutes: number;
+    active: boolean;
+    onboardingCompletedAt: Date | null;
   };
   staffProfile: {
     id: string;
@@ -49,6 +51,8 @@ export async function getAvailabilityInputs(
       id: businesses.id,
       timezone: businesses.timezone,
       bookingIntervalMinutes: businesses.bookingIntervalMinutes,
+      active: businesses.active,
+      onboardingCompletedAt: businesses.onboardingCompletedAt,
     })
     .from(businesses)
     .where(eq(businesses.id, businessId))
@@ -109,6 +113,40 @@ export async function getAvailabilityInputs(
     service: svc,
     isAssigned: !!staffSvc,
   };
+}
+
+export async function hasCompleteEffectiveSchedule(
+  businessId: string,
+  staffId: string,
+  usesBusinessHours: boolean,
+  executor: DbExecutor = db
+): Promise<boolean> {
+  if (usesBusinessHours) {
+    const [stats] = await executor
+      .select({
+        totalDays: sql<number>`count(*)::int`,
+        openDays: sql<number>`count(case when ${businessWorkingHours.isClosed} = false then 1 end)::int`,
+      })
+      .from(businessWorkingHours)
+      .where(eq(businessWorkingHours.businessId, businessId));
+
+    return stats.totalDays === 7 && stats.openDays >= 1;
+  }
+
+  const [stats] = await executor
+    .select({
+      totalDays: sql<number>`count(*)::int`,
+      workingDays: sql<number>`count(case when ${staffWorkingHours.isWorking} = true then 1 end)::int`,
+    })
+    .from(staffWorkingHours)
+    .where(
+      and(
+        eq(staffWorkingHours.businessId, businessId),
+        eq(staffWorkingHours.staffId, staffId)
+      )
+    );
+
+  return stats.totalDays === 7 && stats.workingDays >= 1;
 }
 
 export async function getEffectiveScheduleForDay(

@@ -372,7 +372,7 @@ drizzle/
   - `revoked_at` invalidates a token immediately. Issuing another token does not auto-revoke existing tokens.
 - **Read-only public boundary**:
   - `/randevu` submits the captured fragment secret to a server-only resolver, which hashes it, validates syntax, expiry, and revocation, then returns only business name, appointment service snapshots, current assigned staff display name, business-timezone date/time, price/currency, duration, and Turkish status.
-  - The route exposes no database IDs, customer/appointment notes, CRM history, merge lineage, membership data, contact PII, cancellation, or rescheduling mutation.
+  - The route exposes no database IDs, customer/appointment notes, CRM history, merge lineage, membership data, or contact PII. Later TASK 014 phases add only narrowly scoped cancellation and date/time rescheduling mutations behind the same capability boundary.
   - Missing, malformed, unknown, expired, and revoked tokens share one non-oracular Turkish invalid-link state.
 - **Capability URL protections**:
   - Responses use `Cache-Control: private, no-store`, `Referrer-Policy: no-referrer`, and `X-Robots-Tag: noindex, nofollow, noarchive`; route metadata also disables indexing.
@@ -387,9 +387,25 @@ drizzle/
   - Mutation preserves the existing lock hierarchy: initial capability lookup, `staff_profiles` row lock, appointment row lock/re-read, then capability row lock/revalidation. Status/time are checked again using mutation-time server truth before setting only `status = CANCELLED` (with the existing `updated_at` trigger).
   - The ordering serializes safely with public booking, internal status changes, reassignment, and rescheduling. A cancellation that commits first prevents rescheduling from resurrecting the appointment; a reschedule that commits first is re-read before cancellation.
 - **Read model and token lifecycle**:
-  - The management DTO adds only `canCancel`. It is presentation guidance; the mutation always revalidates capability, status, and time.
+  - The management DTO exposes presentation booleans such as `canCancel`; these are guidance only, and each mutation revalidates capability, status, and time.
   - Successful cancellation retains every valid management token until normal expiry or explicit revocation. All active tokens observe `CANCELLED` and `canCancel = false`.
   - `CANCELLED` remains non-blocking in the shared availability repositories, so the released time becomes available through the normal scheduling engine without deletion or special slot state.
 - **Public UX boundary**:
   - Cancellation requires an accessible alert-dialog confirmation, pending/disabled state, and an explicit destructive action. Success remains on `/randevu`, announces `Randevunuz iptal edildi.`, refreshes the summary, and removes the control.
-  - Invalid capabilities preserve the existing non-oracular state. Stale eligibility uses the generic operational message `Bu randevu artık iptal edilemiyor.` Public rescheduling is not implemented.
+  - Invalid capabilities preserve the existing non-oracular state. Stale eligibility uses the generic operational message `Bu randevu artık iptal edilemiyor.`
+
+### 3.19 Secure Public Appointment Rescheduling (TASK 014C)
+- **Narrow capability mutation**:
+  - `canPubliclyRescheduleAppointment` permits only future `PENDING`/`CONFIRMED` appointments whose current business, concrete staff, service assignment, public-booking flag, membership, onboarding, and effective seven-day schedule remain publicly eligible.
+  - The browser submits only the in-memory raw capability plus a local date for lookup or an exact server-issued slot instant for mutation. Business, appointment, customer, staff, service, duration, and price are always derived from trusted database state.
+- **Shared scheduling engine**:
+  - Capability-authorized availability delegates to `getStaffAvailability` with the appointment's fixed concrete staff, fixed service, immutable booked-duration snapshot, and `excludeAppointmentId` so the appointment does not block itself.
+  - Business/custom working hours, time blocks, current time, booking interval, and all other blocking appointments use the same engine as public booking and internal rescheduling. The exact current slot is omitted from choices and a direct unchanged submission is a safe no-op.
+- **Transactional revalidation and locking**:
+  - Mutation uses the established staff-profile → appointment → capability lock order, then re-reads lifecycle and public eligibility and recomputes exact availability inside the transaction.
+  - A successful mutation changes only `start_time` and `end_time` (plus trigger-managed `updated_at`), preserving status, source, customer, staff, service, snapshots, notes, and cancellation reason.
+  - All appointment access-token expirations are refreshed atomically to the new appointment end plus 24 hours; moving earlier shortens expiry, moving later extends it, and revoked tokens remain revoked.
+- **Concurrency and UX**:
+  - Public/public reschedules, public booking, internal rescheduling, and cancellation serialize on the same staff/appointment locks. A cancelled appointment cannot be resurrected, and competing writers cannot create a mixed start/end pair or double booking.
+  - `/randevu` offers a date/slot picker and explicit old-versus-new review. Stale slots remain at the old schedule and receive a sanitized recovery message; changed lifecycle or scheduling eligibility fails closed. Cancellation remains visually separate and destructive.
+  - V1 does not allow changing staff or service, does not rerun `Fark Etmez`, and does not introduce customer accounts, notifications, or a configurable notice window.

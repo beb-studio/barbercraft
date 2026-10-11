@@ -3,9 +3,20 @@ import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import { db, type DbExecutor } from "@/db";
 import type { AppointmentStatus } from "@/db/schema/appointments";
-import { formatInstantInBusinessTimezone } from "@/lib/timezone";
-import { canPubliclyCancelAppointment } from "@/lib/appointment-lifecycle";
+import {
+  DATE_REGEX,
+  formatInstantInBusinessTimezone,
+  getBusinessLocalToday,
+} from "@/lib/timezone";
+import {
+  canPubliclyCancelAppointment,
+  canPubliclyRescheduleAppointment,
+} from "@/lib/appointment-lifecycle";
 import { AppointmentAccessRepository } from "@/repositories/appointment-access.repository";
+import {
+  getStaffAvailability,
+  isStaffPublicSchedulingEligible,
+} from "@/services/availability.service";
 
 export const APPOINTMENT_ACCESS_POST_APPOINTMENT_GRACE_MS =
   24 * 60 * 60 * 1000;
@@ -25,7 +36,16 @@ export interface AppointmentManagementView {
   price: string;
   currency: string;
   status: AppointmentStatus;
+  localDate: string;
+  businessLocalToday: string;
   canCancel: boolean;
+  canReschedule: boolean;
+}
+
+export interface AppointmentRescheduleSlot {
+  startAt: string;
+  localStartTime: string;
+  localEndTime: string;
 }
 
 export type AppointmentCancellationResult =
@@ -36,6 +56,36 @@ export type AppointmentCancellationResult =
     }
   | {
       outcome: "NOT_CANCELLABLE";
+      appointment: AppointmentManagementView;
+    }
+  | { outcome: "INVALID_CAPABILITY" };
+
+export type AppointmentRescheduleAvailabilityResult =
+  | {
+      outcome: "AVAILABLE";
+      appointment: AppointmentManagementView;
+      localDate: string;
+      slots: AppointmentRescheduleSlot[];
+      reason?: "CLOSED" | "NO_AVAILABLE_SLOTS";
+    }
+  | {
+      outcome: "NOT_RESCHEDULABLE" | "ONLINE_UNAVAILABLE";
+      appointment: AppointmentManagementView;
+    }
+  | { outcome: "INVALID_DATE" }
+  | { outcome: "INVALID_CAPABILITY" };
+
+export type AppointmentRescheduleResult =
+  | {
+      outcome: "RESCHEDULED";
+      appointment: AppointmentManagementView;
+    }
+  | {
+      outcome:
+        | "UNCHANGED"
+        | "SLOT_UNAVAILABLE"
+        | "NOT_RESCHEDULABLE"
+        | "ONLINE_UNAVAILABLE";
       appointment: AppointmentManagementView;
     }
   | { outcome: "INVALID_CAPABILITY" };
@@ -74,10 +124,12 @@ type ManagementViewRow = NonNullable<
   >
 >;
 
-function toManagementView(
+async function toManagementView(
   row: ManagementViewRow,
-  referenceNow: Date
-): AppointmentManagementView {
+  referenceNow: Date,
+  executor: DbExecutor = db,
+  knownPublicSchedulingEligibility?: boolean
+): Promise<AppointmentManagementView> {
   const localStart = formatInstantInBusinessTimezone(
     row.startTime,
     row.businessTimezone
@@ -86,6 +138,15 @@ function toManagementView(
     row.endTime,
     row.businessTimezone
   );
+
+  const publicSchedulingEligible =
+    knownPublicSchedulingEligibility ??
+    (await isStaffPublicSchedulingEligible({
+      businessId: row.businessId,
+      staffId: row.staffId,
+      serviceId: row.serviceId,
+      executor,
+    }));
 
   return {
     businessName: row.businessName,
@@ -98,12 +159,30 @@ function toManagementView(
     price: row.servicePrice,
     currency: row.businessCurrency,
     status: row.status,
+    localDate: localStart.dateStr,
+    businessLocalToday: getBusinessLocalToday(
+      row.businessTimezone,
+      referenceNow
+    ),
     canCancel: canPubliclyCancelAppointment({
       status: row.status,
       startsAt: row.startTime,
       referenceNow,
     }).allowed,
+    canReschedule: canPubliclyRescheduleAppointment({
+      status: row.status,
+      startsAt: row.startTime,
+      referenceNow,
+      publicSchedulingEligible,
+    }).allowed,
   };
+}
+
+function parseCanonicalInstant(value: unknown): Date | null {
+  if (typeof value !== "string" || value.length > 40) return null;
+  const instant = new Date(value);
+  if (Number.isNaN(instant.getTime())) return null;
+  return instant.toISOString() === value ? instant : null;
 }
 
 export const AppointmentAccessService = {
@@ -172,7 +251,7 @@ export const AppointmentAccessService = {
 
     return db.transaction(async (tx) => {
       const target =
-        await AppointmentAccessRepository.findCancellationTargetByHash(
+        await AppointmentAccessRepository.findMutationTargetByHash(
           tx,
           tokenHash
         );
@@ -247,7 +326,7 @@ export const AppointmentAccessService = {
         if (!currentView) return { outcome: "INVALID_CAPABILITY" } as const;
         return {
           outcome: "NOT_CANCELLABLE",
-          appointment: toManagementView(currentView, mutationNow),
+          appointment: await toManagementView(currentView, mutationNow, tx),
         } as const;
       }
 
@@ -263,7 +342,303 @@ export const AppointmentAccessService = {
       return {
         outcome: "CANCELLED",
         changed,
-        appointment: toManagementView(cancelledView, mutationNow),
+        appointment: await toManagementView(cancelledView, mutationNow, tx),
+      } as const;
+    });
+  },
+
+  async getRescheduleAvailability(
+    rawToken: unknown,
+    localDate: unknown,
+    referenceNow: Date = new Date()
+  ): Promise<AppointmentRescheduleAvailabilityResult> {
+    if (!hasValidTokenSyntax(rawToken)) {
+      return { outcome: "INVALID_CAPABILITY" };
+    }
+    if (typeof localDate !== "string" || !DATE_REGEX.test(localDate)) {
+      return { outcome: "INVALID_DATE" };
+    }
+
+    const tokenHash = hashRawToken(rawToken);
+    const target = await AppointmentAccessRepository.findMutationTargetByHash(
+      db,
+      tokenHash
+    );
+    if (!target || !isCapabilityActive(target, referenceNow)) {
+      return { outcome: "INVALID_CAPABILITY" };
+    }
+
+    const row = await AppointmentAccessRepository.findManagementViewByHash(
+      tokenHash
+    );
+    if (!row) return { outcome: "INVALID_CAPABILITY" };
+
+    const publicSchedulingEligible =
+      await isStaffPublicSchedulingEligible({
+        businessId: target.businessId,
+        staffId: target.staffId,
+        serviceId: target.serviceId,
+      });
+    const decision = canPubliclyRescheduleAppointment({
+      status: row.status,
+      startsAt: row.startTime,
+      referenceNow,
+      publicSchedulingEligible,
+    });
+    const appointment = await toManagementView(
+      row,
+      referenceNow,
+      db,
+      publicSchedulingEligible
+    );
+
+    if (!decision.allowed) {
+      return {
+        outcome:
+          decision.reason === "PUBLIC_SCHEDULING_UNAVAILABLE"
+            ? "ONLINE_UNAVAILABLE"
+            : "NOT_RESCHEDULABLE",
+        appointment,
+      };
+    }
+
+    if (localDate < appointment.businessLocalToday) {
+      return { outcome: "INVALID_DATE" };
+    }
+
+    try {
+      const availability = await getStaffAvailability({
+        businessId: target.businessId,
+        staffId: target.staffId,
+        serviceId: target.serviceId,
+        localDate,
+        referenceNow,
+        excludeAppointmentId: target.appointmentId,
+        serviceDurationMinutes: row.serviceDurationMinutes,
+        context: "PUBLIC",
+      });
+
+      const slots = availability.slots
+        .filter(
+          (slot) =>
+            new Date(slot.startAt).getTime() !== row.startTime.getTime()
+        )
+        .map((slot) => ({
+          startAt: slot.startAt,
+          localStartTime: slot.localStartTime,
+          localEndTime: slot.localEndTime,
+        }));
+
+      const reason =
+        availability.reason === "CLOSED"
+          ? "CLOSED"
+          : slots.length === 0
+            ? "NO_AVAILABLE_SLOTS"
+            : undefined;
+
+      return {
+        outcome: "AVAILABLE",
+        appointment,
+        localDate,
+        slots,
+        ...(reason ? { reason } : {}),
+      };
+    } catch {
+      return { outcome: "INVALID_DATE" };
+    }
+  },
+
+  async reschedule(
+    rawToken: unknown,
+    requestedStartAt: unknown,
+    referenceNow?: Date
+  ): Promise<AppointmentRescheduleResult> {
+    if (!hasValidTokenSyntax(rawToken)) {
+      return { outcome: "INVALID_CAPABILITY" };
+    }
+
+    const tokenHash = hashRawToken(rawToken);
+    const initialNow = referenceNow ?? new Date();
+
+    return db.transaction(async (tx) => {
+      const target =
+        await AppointmentAccessRepository.findMutationTargetByHash(
+          tx,
+          tokenHash
+        );
+      if (!target || !isCapabilityActive(target, initialNow)) {
+        return { outcome: "INVALID_CAPABILITY" } as const;
+      }
+
+      const staffLocked =
+        await AppointmentAccessRepository.lockStaffProfileForUpdate(
+          tx,
+          target.businessId,
+          target.staffId
+        );
+      if (!staffLocked) {
+        return { outcome: "INVALID_CAPABILITY" } as const;
+      }
+
+      const appointment =
+        await AppointmentAccessRepository.lockAppointmentForUpdate(
+          tx,
+          target.businessId,
+          target.appointmentId
+        );
+      if (
+        !appointment ||
+        appointment.staffId !== target.staffId ||
+        appointment.serviceId !== target.serviceId
+      ) {
+        return { outcome: "INVALID_CAPABILITY" } as const;
+      }
+
+      const capability = await AppointmentAccessRepository.lockTokenForUpdate(
+        tx,
+        tokenHash
+      );
+      const mutationNow = referenceNow ?? new Date();
+      if (
+        !capability ||
+        capability.businessId !== target.businessId ||
+        capability.appointmentId !== target.appointmentId ||
+        !isCapabilityActive(
+          {
+            tokenRevokedAt: capability.revokedAt,
+            tokenExpiresAt: capability.expiresAt,
+          },
+          mutationNow
+        )
+      ) {
+        return { outcome: "INVALID_CAPABILITY" } as const;
+      }
+
+      const publicSchedulingEligible =
+        await isStaffPublicSchedulingEligible({
+          businessId: target.businessId,
+          staffId: appointment.staffId,
+          serviceId: appointment.serviceId,
+          executor: tx,
+        });
+      const decision = canPubliclyRescheduleAppointment({
+        status: appointment.status,
+        startsAt: appointment.startTime,
+        referenceNow: mutationNow,
+        publicSchedulingEligible,
+      });
+
+      const currentRow =
+        await AppointmentAccessRepository.findManagementViewByHash(
+          tokenHash,
+          tx
+        );
+      if (!currentRow) return { outcome: "INVALID_CAPABILITY" } as const;
+      const currentView = await toManagementView(
+        currentRow,
+        mutationNow,
+        tx,
+        publicSchedulingEligible
+      );
+
+      if (!decision.allowed) {
+        return {
+          outcome:
+            decision.reason === "PUBLIC_SCHEDULING_UNAVAILABLE"
+              ? "ONLINE_UNAVAILABLE"
+              : "NOT_RESCHEDULABLE",
+          appointment: currentView,
+        } as const;
+      }
+
+      const requestedStart = parseCanonicalInstant(requestedStartAt);
+      if (!requestedStart) {
+        return {
+          outcome: "SLOT_UNAVAILABLE",
+          appointment: currentView,
+        } as const;
+      }
+
+      if (requestedStart.getTime() === appointment.startTime.getTime()) {
+        return {
+          outcome: "UNCHANGED",
+          appointment: currentView,
+        } as const;
+      }
+
+      const localDate = formatInstantInBusinessTimezone(
+        requestedStart,
+        currentRow.businessTimezone
+      ).dateStr;
+
+      let availability;
+      try {
+        availability = await getStaffAvailability({
+          businessId: target.businessId,
+          staffId: appointment.staffId,
+          serviceId: appointment.serviceId,
+          localDate,
+          referenceNow: mutationNow,
+          excludeAppointmentId: appointment.id,
+          serviceDurationMinutes: appointment.serviceDurationSnapshot,
+          context: "PUBLIC",
+          executor: tx,
+        });
+      } catch {
+        return {
+          outcome: "SLOT_UNAVAILABLE",
+          appointment: currentView,
+        } as const;
+      }
+
+      const selectedSlot = availability.slots.find(
+        (slot) =>
+          new Date(slot.startAt).getTime() === requestedStart.getTime()
+      );
+      if (!selectedSlot) {
+        return {
+          outcome: "SLOT_UNAVAILABLE",
+          appointment: currentView,
+        } as const;
+      }
+
+      const newEndTime = new Date(
+        requestedStart.getTime() +
+          appointment.serviceDurationSnapshot * 60_000
+      );
+      const updated =
+        await AppointmentAccessRepository.setAppointmentSchedule(
+          tx,
+          target.businessId,
+          appointment.id,
+          requestedStart,
+          newEndTime
+        );
+      if (!updated) return { outcome: "INVALID_CAPABILITY" } as const;
+
+      await AppointmentAccessService.refreshExpirationAfterReschedule(tx, {
+        businessId: target.businessId,
+        appointmentId: appointment.id,
+        appointmentEndTime: newEndTime,
+      });
+
+      const refreshedRow =
+        await AppointmentAccessRepository.findManagementViewByHash(
+          tokenHash,
+          tx
+        );
+      if (!refreshedRow) {
+        return { outcome: "INVALID_CAPABILITY" } as const;
+      }
+
+      return {
+        outcome: "RESCHEDULED",
+        appointment: await toManagementView(
+          refreshedRow,
+          mutationNow,
+          tx,
+          publicSchedulingEligible
+        ),
       } as const;
     });
   },

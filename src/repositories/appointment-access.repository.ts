@@ -63,6 +63,10 @@ export const AppointmentAccessRepository = {
       .select({
         tokenExpiresAt: appointmentAccessTokens.expiresAt,
         tokenRevokedAt: appointmentAccessTokens.revokedAt,
+        businessId: appointments.businessId,
+        appointmentId: appointments.id,
+        staffId: appointments.staffId,
+        serviceId: appointments.serviceId,
         businessName: businesses.name,
         businessTimezone: businesses.timezone,
         businessCurrency: businesses.currency,
@@ -100,7 +104,7 @@ export const AppointmentAccessRepository = {
     return row ?? null;
   },
 
-  async findCancellationTargetByHash(
+  async findMutationTargetByHash(
     executor: DbExecutor,
     tokenHash: string
   ) {
@@ -111,6 +115,7 @@ export const AppointmentAccessRepository = {
         tokenExpiresAt: appointmentAccessTokens.expiresAt,
         tokenRevokedAt: appointmentAccessTokens.revokedAt,
         staffId: appointments.staffId,
+        serviceId: appointments.serviceId,
       })
       .from(appointmentAccessTokens)
       .innerJoin(
@@ -147,11 +152,21 @@ export const AppointmentAccessRepository = {
   ): Promise<{
     id: string;
     staffId: string;
+    serviceId: string;
     status: AppointmentStatus;
     startTime: Date;
+    endTime: Date;
+    serviceDurationSnapshot: number;
   } | null> {
     const result = await executor.execute(sql`
-      SELECT id, staff_id, status, start_time
+      SELECT
+        id,
+        staff_id,
+        service_id,
+        status,
+        start_time,
+        end_time,
+        service_duration_snapshot
       FROM appointments
       WHERE business_id = ${businessId} AND id = ${appointmentId}
       FOR UPDATE
@@ -160,8 +175,11 @@ export const AppointmentAccessRepository = {
       | {
           id: string;
           staff_id: string;
+          service_id: string;
           status: AppointmentStatus;
           start_time: Date;
+          end_time: Date;
+          service_duration_snapshot: number;
         }
       | undefined;
 
@@ -169,11 +187,17 @@ export const AppointmentAccessRepository = {
       ? {
           id: row.id,
           staffId: row.staff_id,
+          serviceId: row.service_id,
           status: row.status,
           startTime:
             row.start_time instanceof Date
               ? row.start_time
               : new Date(row.start_time),
+          endTime:
+            row.end_time instanceof Date
+              ? row.end_time
+              : new Date(row.end_time),
+          serviceDurationSnapshot: row.service_duration_snapshot,
         }
       : null;
   },
@@ -228,6 +252,27 @@ export const AppointmentAccessRepository = {
     const rows = await executor
       .update(appointments)
       .set({ status: "CANCELLED" })
+      .where(
+        and(
+          eq(appointments.businessId, businessId),
+          eq(appointments.id, appointmentId)
+        )
+      )
+      .returning({ id: appointments.id });
+
+    return rows.length === 1;
+  },
+
+  async setAppointmentSchedule(
+    executor: DbExecutor,
+    businessId: string,
+    appointmentId: string,
+    startTime: Date,
+    endTime: Date
+  ): Promise<boolean> {
+    const rows = await executor
+      .update(appointments)
+      .set({ startTime, endTime })
       .where(
         and(
           eq(appointments.businessId, businessId),
