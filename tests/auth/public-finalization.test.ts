@@ -261,8 +261,8 @@ describe("Public Booking Finalization (TASK 007C)", { concurrency: false }, () =
       
       const customers = await db.execute(`SELECT * FROM customers WHERE normalized_phone = '05329998877'`);
       assert.equal(customers.rows.length, 1, "Should reuse the same customer row");
-      assert.equal(customers.rows[0].first_name, "Test", "Should update the name based on the second booking");
-      assert.equal(customers.rows[0].last_name, "2");
+      assert.equal(customers.rows[0].first_name, "Test", "Should preserve the first booking profile");
+      assert.equal(customers.rows[0].last_name, "1");
     });    it("rolls back and does not create customer if slot is invalid", async () => {
       const uniquePhone = "05559998811";
       try {

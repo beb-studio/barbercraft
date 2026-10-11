@@ -241,7 +241,9 @@ export class StaffProvisioningService {
       // Deletion is allowed ONLY when exclusive ownership can be proven.
       // Since concurrent transactions might already rely on this global identity,
       // we leave the harmless orphan rather than risking deletion of a valid shared identity.
-      if (error && typeof error === "object" && "code" in error && error.code === "23505") {
+      const wrappedError = error as { code?: string; cause?: { code?: string } } | null;
+      const postgresCode = wrappedError?.cause?.code ?? wrappedError?.code;
+      if (postgresCode === "23505") {
         throw new Error("STAFF_ALREADY_EXISTS: Active staff member already exists.");
       }
       throw error;

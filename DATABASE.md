@@ -111,11 +111,29 @@ Business-scoped customer registry.
 - `last_name` (text, nullable)
 - `phone` (text, NOT NULL)
 - `normalized_phone` (text, NOT NULL, E.164 format)
+- `phone_comparison_key` (text, NOT NULL, server-maintained; non-unique)
+- `merged_into_customer_id` (uuid, nullable; NULL for canonical records)
+- `merged_at` (timestamptz, nullable)
+- `merged_by_business_member_id` (uuid, nullable)
 - `notes` (text, nullable)
 - `created_at`, `updated_at` (timestamptz, NOT NULL)
 - Constraints:
   - UNIQUE `(business_id, normalized_phone)`
   - UNIQUE `(business_id, id)`
+  - Composite FK `(business_id, merged_into_customer_id) -> customers(business_id, id)` ON DELETE RESTRICT
+  - Composite FK `(business_id, merged_by_business_member_id) -> business_members(business_id, id)` ON DELETE RESTRICT
+  - Check `customers_no_self_merge_check`: a customer cannot merge into itself
+  - Check `customers_merge_metadata_check`: target, timestamp, and author are either all NULL or all populated
+- Indexes:
+  - `customers_business_phone_comparison_idx` on `(business_id, phone_comparison_key)`
+  - `customers_business_merged_into_idx` on `(business_id, merged_into_customer_id)`
+- Logical merge policy: aliases point directly to a canonical root; customer rows, appointment references, and note ownership are never moved or deleted by merge.
+- Canonical read policy: family membership is the canonical row plus rows whose `merged_into_customer_id` equals the canonical ID. Directory pagination starts from canonical rows, while appointment and note aggregates join through this one-hop family.
+- Booking resolution policy: exact `(business_id, normalized_phone)` remains authoritative and is canonicalized through lineage. Comparison-key fallback is allowed only for one unambiguous root family; comparison keys remain non-unique and never cause automatic merge.
+- Historical preservation: resolving a future booking never updates an existing customer profile, `appointments.customer_id`, or historical `customer_notes.customer_id`. New notes submitted through stale alias IDs are inserted against the canonical customer.
+- Operational merge write policy: the OWNER/ADMIN confirmation flow delegates to the serializable merge service; only alias merge metadata changes. The selected canonical row remains a root, all other family members point directly to it, and no appointment, service snapshot, note ownership, or customer row is rewritten/deleted.
+- Lineage read policy: canonical CRM detail loads direct aliases with one tenant-scoped query for previous name/phone, merge timestamp, and optional merge-author display name. These fields are management-only and are not exposed to STAFF booking search or public flows.
+- V1 deliberately has no reverse-lineage mutation or unmerge operation.
 
 ### 3.8 `business_working_hours`
 Weekly schedule for the business across 7 days.
@@ -187,3 +205,5 @@ Weekly schedule for the business across 7 days.
 2. `enforce_appointment_snapshot()`: Trigger function BEFORE INSERT OR UPDATE on `appointments` that copies `name`, `duration_minutes`, `price` from `services` if snapshots are null.
 3. `prevent_appointment_column_change()`: Trigger function BEFORE UPDATE on `appointments` that rejects changing `business_id`, `customer_id`, `staff_id`, or `service_id`.
 4. `is_valid_timezone(tz text)`: Helper function that tests whether a timezone string is valid in PostgreSQL.
+5. `customer_phone_comparison_key(text)` and `sync_customer_phone_comparison_key()`: Preserve application-equivalent comparison-key semantics during backfill and direct server-side writes.
+6. `enforce_customer_merge_one_hop()`: Deferred constraint trigger that rejects aliases targeting aliases and canonical rows that still have inbound aliases when they become aliases.

@@ -47,7 +47,7 @@ const svcFail1 = uuid(576);
 const svcFailInactive = uuid(577);
 
 before(async () => {
-  pgServer = await startDatabase({ port: 54404 });
+  pgServer = await startDatabase();
   process.env.DATABASE_URL = pgServer.connectionString;
 
   const dbLib = await import("../../src/db");

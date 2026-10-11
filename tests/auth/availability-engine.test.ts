@@ -22,7 +22,7 @@ const svc60 = uuid(809);
 const svcbizB = uuid(810);
 
 before(async () => {
-  pgServer = await startDatabase({ port: 54411 });
+  pgServer = await startDatabase();
   process.env.DATABASE_URL = pgServer.connectionString;
 
   const dbLib = await import("../../src/db");

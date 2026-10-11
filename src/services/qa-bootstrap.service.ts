@@ -560,6 +560,7 @@ export async function bootstrapQA(credentials: QACredentials): Promise<QABootstr
   // 10. Sample Customer and Initial Appointment for Dashboard Testing
   const customerPhone = "+905551234567";
   const normalizedPhone = "905551234567";
+  const phoneComparisonKey = "+905551234567";
 
   const [existingCustomer] = await db
     .select({ id: customers.id })
@@ -583,6 +584,7 @@ export async function bootstrapQA(credentials: QACredentials): Promise<QABootstr
         lastName: "Yılmaz",
         phone: customerPhone,
         normalizedPhone,
+        phoneComparisonKey,
       })
       .returning();
     customerId = createdCust.id;

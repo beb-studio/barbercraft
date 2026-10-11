@@ -20,7 +20,7 @@ const biz1 = uuid(911); // Will stay active
 const biz2 = uuid(912); // Will be deactivated
 
 before(async () => {
-  pgServer = await startDatabase({ port: 54461 });
+  pgServer = await startDatabase();
   process.env.DATABASE_URL = pgServer.connectionString;
 
   const dbLib = await import("../../src/db");

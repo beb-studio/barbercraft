@@ -11,7 +11,7 @@ let businesses: any;
 let businessMembers: any;
 
 before(async () => {
-  pgServer = await startDatabase({ port: 54401 });
+  pgServer = await startDatabase();
   process.env.DATABASE_URL = pgServer.connectionString;
 
   const dbLib = await import("../../src/db");

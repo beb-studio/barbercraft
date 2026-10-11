@@ -50,6 +50,22 @@
    - Status defaults to `BOOKED`.
    - Appointment captures permanent snapshots (`service_name_snapshot`, `service_duration_snapshot`, `service_price_snapshot`, `service_currency_snapshot`). Future changes to the service catalog will not alter historical appointment records.
 
+### Customer canonical-family rules
+
+1. A customer with `merged_into_customer_id IS NULL` is canonical. An alias points directly to that canonical root; multi-hop lineage and cycles are invalid.
+2. Future booking resolution first uses exact tenant + `normalized_phone`. An exact alias identity resolves to its canonical root.
+3. If no exact normalized phone exists, an equal non-empty `phone_comparison_key` may resolve only when every matching row belongs to one proven canonical family. Multiple independent roots are ambiguous: the system must not choose, merge, create, or overwrite a customer arbitrarily.
+4. Future public and manual appointments use the resolved canonical ID. Historical `appointments.customer_id` values are immutable and remain on their original physical customer rows.
+5. CRM directory rows, pagination, appointment metrics, history, and internal-note views represent canonical families. Canonical profile fields are authoritative; alias profile values remain searchable historical identities and are not synthesized into the profile.
+6. Historical `customer_notes.customer_id` values remain unchanged. New notes attach to the canonical row; alias-origin notes remain manageable from canonical detail after family authorization.
+7. STAFF may search canonicalized minimum customer fields only for manual booking. STAFF cannot access CRM history, notes, merge lineage, or duplicate review.
+8. Alias detail URLs redirect authorized OWNER/ADMIN users to the canonical URL. Alias profiles cannot be edited directly.
+9. Duplicate candidate detection is advisory and never auto-merges. Merged aliases are not independent candidates; independent canonical families with the same defensible evidence remain visible. OWNER/ADMIN may separately initiate the explicit merge workflow.
+10. The operator must explicitly select the primary customer; there is no preselection or age/activity heuristic. The selected current profile remains authoritative.
+11. Candidate data is a view only. Confirmation reloads and locks the complete eligible group server-side. Stale, ineligible, or concurrent requests fail atomically with typed, sanitized Turkish feedback and are never auto-retried.
+12. A successful merge changes only alias merge metadata, refreshes duplicate/directory/detail reads, and navigates to the selected canonical profile. Customer rows, historical appointment IDs/snapshots, and historical note customer IDs remain unchanged.
+13. Retained alias name, phone, merge time, and optional merge actor are management CRM data visible only to OWNER/ADMIN. Raw IDs/comparison keys are not rendered. V1 has no unmerge operation.
+
 ---
 
 ## 4. Role & Permission Matrix
@@ -65,6 +81,7 @@
 | Create / Manage Appointments | Yes | Yes | Yes (own calendar) | Public Booking |
 | Manage Time Blocks | Yes | Yes | Yes (own blocks) | No |
 | Manage Customers (CRM Directory, Details, Notes) | Yes | Yes | No (Lookup only for booking) | No |
+| Review & Merge Duplicate Customers | Yes | Yes | No | No |
 
 ---
 
@@ -379,13 +396,23 @@
    - `searchCustomersForBookingAction`: Permitted for `OWNER`, `ADMIN`, and `STAFF`. Returns minimal operational fields (`id`, `firstName`, `lastName`, `phone`, `appointmentCount`, `lastAppointmentDate`).
    - Customer CRM directory (`/dashboard/customers`), customer details (`/dashboard/customers/[customerId]`), profile editing, and internal notes remain strictly restricted to `OWNER` and `ADMIN`.
    - `STAFF` members are forbidden from accessing the customer directory, profile editing, and internal notes.
-4. **Advisory Duplicate Candidate Detection**:
+4. **Duplicate Candidate Detection and Explicit Merge**:
    - Duplicate detection groups customer records by canonical E.164 phone comparison keys (`customerPhoneComparisonKey`).
-   - Detection is strictly **advisory and read-only**.
    - Accessible only at `/dashboard/customers/duplicates` by `OWNER` and `ADMIN` (403 for `STAFF`).
-   - The system NEVER performs automatic customer merging or automatic deletion.
-5. **Customer Merge Architecture Deferred**:
-   - All customer merge operations are deferred to TASK 013C.2.
+   - Detection itself is advisory and never performs automatic merge or deletion. OWNER/ADMIN may explicitly enter review, select the canonical customer, review consequences, and confirm the existing logical merge operation.
+5. **Logical Merge Preservation**:
    - Database trigger `prevent_appointment_column_change()` strictly forbids changing `customer_id` on existing appointments.
-   - TASK 013C.2 will implement an explicit, safe, and audited customer merge model.
+   - Historical note customer IDs and customer rows also remain physically unchanged. V1 provides no unmerge operation.
 
+---
+
+## 15. Logical Customer Merge Foundation Rules (TASK 013C.2A)
+
+1. A canonical customer has no merge target; an alias points directly to one canonical customer in the same business.
+2. Only active tenant `OWNER` and `ADMIN` memberships may execute a logical merge. Platform role alone grants no tenant authority.
+3. V1 merge eligibility requires the same non-empty persisted `phone_comparison_key`; name equality never authorizes merge.
+4. The complete current comparison-key group is reloaded and locked in deterministic UUID order inside one PostgreSQL transaction.
+5. Existing valid alias families are flattened to the newly selected canonical root. Self-merge, cycles, and multi-hop lineage are forbidden.
+6. Merge never updates `appointments.customer_id`, reassigns `customer_notes.customer_id`, or deletes customer rows.
+7. Direct profile mutation of an alias is rejected with a typed domain outcome; authorized alias detail routes redirect to the editable canonical profile.
+8. `normalized_phone` remains the operational identity field. `phone_comparison_key` is non-unique and serves duplicate eligibility and future alias resolution only.
