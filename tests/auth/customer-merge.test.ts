@@ -167,7 +167,13 @@ describe("TASK 013C.2A logical customer merge domain", () => {
     mockSession(user.owner);
     const result = await customerActions.mergeCustomersAction(ids[0], ids);
     assert.equal(result.success, true);
-    assert.deepEqual(result.data.aliasCustomerIds.sort(), ids.slice(1).sort());
+    assert.equal(result.data.canonicalCustomerId, ids[0]);
+    const rows = await customerRows(ids);
+    assert.ok(
+      rows
+        .filter((row: any) => row.id !== ids[0])
+        .every((row: any) => row.mergedIntoCustomerId === ids[0])
+    );
   });
 
   it("19. rejects differing comparison keys", async () => {

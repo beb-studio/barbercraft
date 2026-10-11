@@ -6,6 +6,19 @@ import { CustomerRepository } from "@/repositories/customer.repository";
 import { CustomerMergeService } from "@/services/customer-merge.service";
 import { isCustomerDomainError, type CustomerDomainErrorCode } from "@/lib/customer-domain-errors";
 
+function safeCustomerActionMessage(error: unknown, fallback: string): string {
+  if (isCustomerDomainError(error)) {
+    return "Müşteri kaydı güvenli biçimde çözümlenemedi.";
+  }
+  const value = error as {
+    message?: string;
+    code?: string;
+    cause?: { code?: string };
+  };
+  if (value?.code || value?.cause?.code) return fallback;
+  return value?.message || fallback;
+}
+
 export async function getCustomerDirectoryAction(
   businessIdParam?: string,
   search?: string,
@@ -44,7 +57,7 @@ export async function getCustomerDirectoryAction(
     if (err?.name === "UnauthorizedError" || err?.name === "ForbiddenError") {
       return { success: false as const, error: "Yetkisiz işlem." };
     }
-    return { success: false as const, error: (error as Error).message || "Beklenmeyen hata" };
+    return { success: false as const, error: safeCustomerActionMessage(error, "Müşteriler yüklenemedi.") };
   }
 }
 
@@ -74,15 +87,24 @@ export async function getCustomerDetailAction(customerId: string, businessIdPara
       return { success: false as const, error: "Müşteri bulunamadı." };
     }
     
-    const history = await CustomerRepository.getCustomerAppointmentHistory(targetBusinessId, customerId);
+    const [history, lineage] = await Promise.all([
+      CustomerRepository.getCustomerAppointmentHistory(targetBusinessId, detail.customer.id),
+      CustomerRepository.getCustomerLineage(targetBusinessId, detail.customer.id),
+    ]);
 
-    return { success: true as const, customer: detail.customer, stats: detail.stats, history };
+    return {
+      success: true as const,
+      customer: detail.customer,
+      stats: detail.stats,
+      history,
+      lineage,
+    };
   } catch (error: unknown) {
     const err = error as Record<string, unknown>;
     if (err?.name === "UnauthorizedError" || err?.name === "ForbiddenError") {
       return { success: false as const, error: "Yetkisiz işlem." };
     }
-    return { success: false as const, error: (error as Error).message || "Beklenmeyen hata" };
+    return { success: false as const, error: safeCustomerActionMessage(error, "Müşteri bilgileri yüklenemedi.") };
   }
 }
 
@@ -149,7 +171,16 @@ export async function updateCustomerProfileAction(
     if (isCustomerDomainError(error) && error.code === "CUSTOMER_ALIAS_MUTATION_FORBIDDEN") {
       return { success: false as const, error: "Birleştirilmiş müşteri kaydı doğrudan düzenlenemez." };
     }
-    return { success: false as const, error: (error as Error).message || "Beklenmeyen hata" };
+    if (isCustomerDomainError(error) && error.code === "CUSTOMER_PHONE_AMBIGUOUS") {
+      return {
+        success: false as const,
+        error: "Bu telefon biçimi başka bir bağımsız müşteri ailesiyle eşleşiyor.",
+      };
+    }
+    if (isCustomerDomainError(error) && error.code === "CUSTOMER_PHONE_INVALID") {
+      return { success: false as const, error: "Lütfen geçerli bir telefon numarası girin." };
+    }
+    return { success: false as const, error: safeCustomerActionMessage(error, "Müşteri güncellenemedi.") };
   }
 }
 
@@ -177,7 +208,7 @@ export async function getCustomerNotesAction(customerId: string, businessIdParam
     if (err?.name === "UnauthorizedError" || err?.name === "ForbiddenError") {
       return { success: false as const, error: "Yetkisiz işlem." };
     }
-    return { success: false as const, error: (error as Error).message || "Beklenmeyen hata" };
+    return { success: false as const, error: safeCustomerActionMessage(error, "Notlar yüklenemedi.") };
   }
 }
 
@@ -209,6 +240,9 @@ export async function addCustomerNoteAction(customerId: string, content: string,
     }
 
     const note = await CustomerRepository.addNote(targetBusinessId, customerId, trimmedContent, targetMember.id);
+    if (!note) {
+      return { success: false as const, error: "Müşteri bulunamadı." };
+    }
     
     safeRevalidatePath(`/dashboard/customers/${customerId}`);
     return { success: true as const, note };
@@ -217,7 +251,7 @@ export async function addCustomerNoteAction(customerId: string, content: string,
     if (err?.name === "UnauthorizedError" || err?.name === "ForbiddenError") {
       return { success: false as const, error: "Yetkisiz işlem." };
     }
-    return { success: false as const, error: (error as Error).message || "Beklenmeyen hata" };
+    return { success: false as const, error: safeCustomerActionMessage(error, "Not kaydedilemedi.") };
   }
 }
 
@@ -238,7 +272,10 @@ export async function deleteCustomerNoteAction(customerId: string, noteId: strin
 
     await requireAdminOrOwner(targetBusinessId);
 
-    await CustomerRepository.deleteNote(targetBusinessId, customerId, noteId);
+    const deleted = await CustomerRepository.deleteNote(targetBusinessId, customerId, noteId);
+    if (!deleted) {
+      return { success: false as const, error: "Not bulunamadı." };
+    }
     
     safeRevalidatePath(`/dashboard/customers/${customerId}`);
     return { success: true as const };
@@ -247,7 +284,7 @@ export async function deleteCustomerNoteAction(customerId: string, noteId: strin
     if (err?.name === "UnauthorizedError" || err?.name === "ForbiddenError") {
       return { success: false as const, error: "Yetkisiz işlem." };
     }
-    return { success: false as const, error: (error as Error).message || "Beklenmeyen hata" };
+    return { success: false as const, error: safeCustomerActionMessage(error, "Not silinemedi.") };
   }
 }
 
@@ -288,7 +325,7 @@ export async function updateCustomerNoteAction(customerId: string, noteId: strin
     if (err?.name === "UnauthorizedError" || err?.name === "ForbiddenError") {
       return { success: false as const, error: "Yetkisiz işlem." };
     }
-    return { success: false as const, error: (error as Error).message || "Beklenmeyen hata" };
+    return { success: false as const, error: safeCustomerActionMessage(error, "Not güncellenemedi.") };
   }
 }
 
@@ -331,7 +368,7 @@ export async function searchCustomersForBookingAction(
     if (err?.name === "UnauthorizedError" || err?.name === "ForbiddenError") {
       return { success: false as const, error: "Yetkisiz işlem." };
     }
-    return { success: false as const, error: (error as Error).message || "Beklenmeyen hata" };
+    return { success: false as const, error: safeCustomerActionMessage(error, "Müşteri araması tamamlanamadı.") };
   }
 }
 
@@ -364,16 +401,20 @@ export async function getDuplicateCandidatesAction(businessIdParam?: string) {
     if (err?.name === "UnauthorizedError" || err?.name === "ForbiddenError") {
       return { success: false as const, error: "Yetkisiz işlem." };
     }
-    return { success: false as const, error: (error as Error).message || "Beklenmeyen hata" };
+    return { success: false as const, error: safeCustomerActionMessage(error, "Olası tekrarlar yüklenemedi.") };
   }
 }
 
 const CUSTOMER_MERGE_MESSAGES: Record<CustomerDomainErrorCode, string> = {
   CUSTOMER_MERGE_NOT_ELIGIBLE: "Seçilen müşteriler birleştirme koşullarını karşılamıyor.",
-  CUSTOMER_MERGE_STALE: "Müşteri grubu değişti. Lütfen listeyi yenileyip tekrar deneyin.",
+  CUSTOMER_MERGE_STALE: "Müşteri kayıtları değişti. Güncel kayıtları yeniden kontrol edin.",
   CUSTOMER_MERGE_CONFLICT: "Müşteriler güvenli biçimde birleştirilemedi. Lütfen tekrar deneyin.",
   CUSTOMER_NOT_FOUND: "Müşteri bulunamadı veya bu işlem için yetkiniz yok.",
   CUSTOMER_ALIAS_MUTATION_FORBIDDEN: "Birleştirilmiş müşteri kaydı doğrudan düzenlenemez.",
+  CUSTOMER_IDENTITY_AMBIGUOUS: "Müşteri kimliği birden fazla kayıtla eşleşiyor.",
+  CUSTOMER_PHONE_AMBIGUOUS: "Telefon biçimi başka bir müşteri ailesiyle eşleşiyor.",
+  CUSTOMER_PHONE_INVALID: "Telefon numarası geçerli değil.",
+  CUSTOMER_LINEAGE_CONFLICT: "Müşteri kaydı güvenli biçimde çözümlenemedi.",
   FORBIDDEN: "Bu işlem için yetkiniz yok.",
 };
 
@@ -396,8 +437,14 @@ export async function mergeCustomersAction(
 
     safeRevalidatePath("/dashboard/customers");
     safeRevalidatePath("/dashboard/customers/duplicates");
+    safeRevalidatePath(`/dashboard/customers/${result.canonicalCustomerId}`);
 
-    return { success: true as const, data: result };
+    // Keep the browser-facing DTO deliberately small. The service result still
+    // contains the full internal audit data for trusted server-side callers.
+    return {
+      success: true as const,
+      data: { canonicalCustomerId: result.canonicalCustomerId },
+    };
   } catch (error: unknown) {
     const value = error as { name?: string };
     if (value?.name === "UnauthorizedError") {

@@ -1,6 +1,6 @@
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, User, Phone, Calendar as CalendarIcon, Clock } from "lucide-react";
+import { ArrowLeft, User, Phone, Calendar as CalendarIcon, Clock, CheckCircle2, Link2 } from "lucide-react";
 import { getMemberships } from "@/lib/auth/session";
 import { getCustomerDetailAction } from "@/actions/customer.actions";
 import { formatInstantInBusinessTimezone } from "@/lib/timezone";
@@ -12,8 +12,10 @@ import { getCustomerNotesAction } from "@/actions/customer.actions";
 
 export default async function CustomerDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ customerId: string }>;
+  searchParams: Promise<{ merged?: string }>;
 }) {
   const memberships = await getMemberships();
   const currentMembership = memberships[0];
@@ -41,7 +43,12 @@ export default async function CustomerDetailPage({
     );
   }
 
-  const { customer, stats, history } = result;
+  if (result.customer.id !== customerId) {
+    redirect(`/dashboard/customers/${result.customer.id}`);
+  }
+
+  const { customer, stats, history, lineage } = result;
+  const showMergeSuccess = (await searchParams).merged === "1";
   
   const notesResult = await getCustomerNotesAction(customerId);
   const notes = notesResult.success ? notesResult.notes : [];
@@ -58,6 +65,16 @@ export default async function CustomerDetailPage({
           <span>Müşterilere Dön</span>
         </Link>
       </div>
+
+      {showMergeSuccess && (
+        <div
+          role="status"
+          className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800"
+        >
+          <CheckCircle2 className="h-4 w-4 shrink-0" />
+          Müşteri kayıtları birleştirildi.
+        </div>
+      )}
 
       {/* Header Profile */}
       <div className="bg-card border border-border shadow-xs rounded-xl p-6">
@@ -83,6 +100,63 @@ export default async function CustomerDetailPage({
           </div>
         </div>
       </div>
+
+      {lineage.length > 0 && (
+        <section
+          aria-labelledby="merged-records-heading"
+          className="rounded-xl border border-border bg-card p-5 shadow-xs sm:p-6"
+        >
+          <div className="mb-4 flex items-start gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+              <Link2 className="h-4 w-4" />
+            </div>
+            <div>
+              <h2 id="merged-records-heading" className="font-semibold text-foreground">
+                Birleştirilen Kayıtlar
+              </h2>
+              <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                Bu eski kimlikler korunur; randevu ve not geçmişleri yukarıdaki
+                birincil müşteri altında birlikte gösterilir.
+              </p>
+            </div>
+          </div>
+          <div className="divide-y divide-border/60 rounded-lg border border-border/70">
+            {lineage.map((alias, index) => (
+              <div
+                key={`${alias.phone}-${alias.mergedAt?.toISOString() ?? index}`}
+                className="grid gap-2 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-center sm:gap-4"
+              >
+                <div>
+                  <p className="text-sm font-medium text-foreground">
+                    {alias.firstName} {alias.lastName || ""}
+                  </p>
+                  <p className="mt-0.5 font-mono text-xs text-muted-foreground">
+                    {alias.phone}
+                  </p>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  <span className="block font-medium text-foreground">Birleştirme tarihi</span>
+                  {alias.mergedAt
+                    ? new Intl.DateTimeFormat("tr-TR", {
+                        day: "numeric",
+                        month: "long",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      }).format(alias.mergedAt)
+                    : "—"}
+                </div>
+                {alias.mergedByName && (
+                  <div className="text-xs text-muted-foreground sm:text-right">
+                    <span className="block font-medium text-foreground">Birleştiren</span>
+                    {alias.mergedByName}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
       
       {/* Customer Notes */}
       <div className="bg-card border border-border shadow-xs rounded-xl p-6">

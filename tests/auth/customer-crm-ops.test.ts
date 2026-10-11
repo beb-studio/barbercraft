@@ -55,7 +55,7 @@ const custA2 = uuid(862);
 const custB1 = uuid(863);
 
 before(async () => {
-  pgServer = await startDatabase({ port: 54471 });
+  pgServer = await startDatabase();
   process.env.DATABASE_URL = pgServer.connectionString;
 
   const dbLib = await import("../../src/db");

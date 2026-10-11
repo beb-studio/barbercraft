@@ -43,7 +43,7 @@ const TARGET_MONDAY = "2026-10-12";
 const REF_NOW = new Date("2026-10-12T05:00:00.000Z");
 
 before(async () => {
-  pgServer = await startDatabase({ port: 54435 });
+  pgServer = await startDatabase();
   process.env.DATABASE_URL = pgServer.connectionString;
 
   const dbLib = await import("../../src/db");

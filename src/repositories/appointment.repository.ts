@@ -3,6 +3,13 @@ import { appointments, NewAppointment } from "../db/schema/appointments";
 import { customers } from "../db/schema/customers";
 import { sql, and, inArray, eq, not, gte, lt } from "drizzle-orm";
 import { customerPhoneComparisonKey, normalizePhone } from "@/lib/phone";
+import { CustomerDomainError } from "@/lib/customer-domain-errors";
+import { CustomerResolutionRepository } from "@/repositories/customer-resolution.repository";
+import {
+  lockCustomerComparisonGroup,
+  resolveCanonicalCustomer,
+  uniqueCanonicalForRows,
+} from "@/services/customer-resolution.service";
 
 export const AppointmentRepository = {
   /**
@@ -96,7 +103,9 @@ export const AppointmentRepository = {
   },
 
   /**
-   * Upserts a customer based on (business_id, normalized_phone) constraint.
+   * Resolves an accountless booking identity without mutating an existing
+   * profile. Exact normalized-phone identity wins. Comparison-key fallback is
+   * accepted only when all matching rows prove one canonical family.
    */
   async upsertCustomer(
     tx: DbTransaction,
@@ -105,8 +114,40 @@ export const AppointmentRepository = {
   ) {
     const normalizedPhone = normalizePhone(customerData.phone);
     const phoneComparisonKey = customerPhoneComparisonKey(normalizedPhone);
+    if (!phoneComparisonKey) {
+      throw new CustomerDomainError("CUSTOMER_PHONE_INVALID");
+    }
 
-    const [customer] = await tx
+    // Serialize create/resolve decisions for equivalent representations that
+    // do not yet have a physical row to lock.
+    await tx.execute(sql`
+      SELECT pg_advisory_xact_lock(
+        hashtextextended(${`${businessId}:${phoneComparisonKey}`}, 0)
+      )
+    `);
+
+    const comparisonRows = await lockCustomerComparisonGroup(
+      tx,
+      businessId,
+      phoneComparisonKey
+    );
+    const exact = comparisonRows.find(
+      (row) => row.normalizedPhone === normalizedPhone
+    );
+    if (exact) {
+      const canonical = await resolveCanonicalCustomer(tx, businessId, exact.id);
+      if (!canonical) throw new CustomerDomainError("CUSTOMER_LINEAGE_CONFLICT");
+      return canonical;
+    }
+
+    const comparisonCanonical = await uniqueCanonicalForRows(
+      tx,
+      businessId,
+      comparisonRows
+    );
+    if (comparisonCanonical) return comparisonCanonical;
+
+    const [created] = await tx
       .insert(customers)
       .values({
         businessId,
@@ -117,19 +158,24 @@ export const AppointmentRepository = {
         phoneComparisonKey,
         notes: customerData.notes || null,
       })
-      .onConflictDoUpdate({
+      .onConflictDoNothing({
         target: [customers.businessId, customers.normalizedPhone],
-        set: {
-          firstName: customerData.firstName,
-          lastName: customerData.lastName || sql`customers.last_name`,
-          phone: customerData.phone,
-          phoneComparisonKey,
-          updatedAt: new Date(),
-        },
       })
       .returning();
 
-    return customer;
+    if (created) return created;
+
+    // Defensive race fallback: the advisory lock should serialize this path,
+    // but a direct database writer may still have inserted the exact identity.
+    const raced = await CustomerResolutionRepository.findExactNormalizedPhone(
+      tx,
+      businessId,
+      normalizedPhone
+    );
+    if (!raced) throw new CustomerDomainError("CUSTOMER_LINEAGE_CONFLICT");
+    const canonical = await resolveCanonicalCustomer(tx, businessId, raced.id);
+    if (!canonical) throw new CustomerDomainError("CUSTOMER_LINEAGE_CONFLICT");
+    return canonical;
   },
 
   /**

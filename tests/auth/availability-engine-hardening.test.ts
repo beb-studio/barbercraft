@@ -40,7 +40,7 @@ const svcUnassigned = uuid(917);
 const svcB = uuid(918);
 
 before(async () => {
-  pgServer = await startDatabase({ port: 54412 });
+  pgServer = await startDatabase();
   process.env.DATABASE_URL = pgServer.connectionString;
 
   const dbLib = await import("../../src/db");
@@ -276,4 +276,3 @@ describe("Availability Engine Hardening (TASK 006B.1A)", () => {
     });
   });
 });
-

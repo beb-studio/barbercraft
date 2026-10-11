@@ -34,7 +34,7 @@ const svcUnassigned = uuid(917);
 const svcB = uuid(918);
 
 before(async () => {
-  pgServer = await startDatabase({ port: 54413 });
+  pgServer = await startDatabase();
   process.env.DATABASE_URL = pgServer.connectionString;
 
   const dbLib = await import("../../src/db");
@@ -331,8 +331,8 @@ describe("Appointment Creation - Write Path Validation", () => {
     });
   });
 
-  describe("Customer Upsert Logic", () => {
-    it("updates existing customer's name if same business and phone", async () => {
+  describe("Customer Resolution Logic", () => {
+    it("reuses an existing customer without overwriting the CRM profile", async () => {
       const startAt = parseDateTimeInBusinessTimezone("2030-01-12", "10:00", "Europe/Istanbul").toISOString();
       
       const appt1 = await AppointmentService.createAppointment({
@@ -358,8 +358,8 @@ describe("Appointment Creation - Write Path Validation", () => {
       const { customers } = customersLib;
       const [customerRecord] = await db.select().from(customers).where(eq(customers.id, appt1.customerId));
       
-      assert.equal(customerRecord.firstName, "Updated", "First name should be updated");
-      assert.equal(customerRecord.lastName, "Name2", "Last name should be updated");
+      assert.equal(customerRecord.firstName, "Original", "Booking must preserve the CRM first name");
+      assert.equal(customerRecord.lastName, "Name", "Booking must preserve the CRM last name");
     });
   });
 
@@ -471,7 +471,7 @@ describe("Appointment Creation - Write Path Validation", () => {
         staffId: staffA,
         serviceId: svc30,
         startAt: startAtISO,
-        customer: { firstName: "Test", phone: "Consistency" }
+        customer: { firstName: "Test", phone: "+905551234599" }
       });
 
       // 3. Subsequent Read

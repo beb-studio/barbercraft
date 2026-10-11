@@ -23,7 +23,7 @@ const TEST_CREDENTIALS = {
 };
 
 before(async () => {
-  pgServer = await startDatabase({ port: 54495 });
+  pgServer = await startDatabase();
   process.env.DATABASE_URL = pgServer.connectionString;
   process.env.BETTER_AUTH_SECRET = "test-secret-http-routing-32-chars-min";
   process.env.BETTER_AUTH_URL = "http://localhost:3001";

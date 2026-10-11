@@ -49,7 +49,7 @@ const svcA1 = uuid(751);
 
 before(async () => {
   // Use dedicated port 54410
-  pgServer = await startDatabase({ port: 54410 });
+  pgServer = await startDatabase();
   process.env.DATABASE_URL = pgServer.connectionString;
 
   const dbLib = await import("../../src/db");

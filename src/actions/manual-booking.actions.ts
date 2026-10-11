@@ -3,6 +3,7 @@
 import { getCurrentUser, getMemberships } from "@/lib/auth/session";
 import { AppointmentService } from "@/services/appointment.service";
 import { getStaffAvailability, AvailabilityResult } from "@/services/availability.service";
+import { isCustomerDomainError } from "@/lib/customer-domain-errors";
 
 interface InternalAvailabilityResponse {
   success: boolean;
@@ -141,6 +142,18 @@ export async function createInternalAppointmentAction(input: CreateInternalAppoi
 
     return { success: true };
   } catch (err: unknown) {
+    if (isCustomerDomainError(err)) {
+      if (err.code === "CUSTOMER_IDENTITY_AMBIGUOUS") {
+        return {
+          success: false,
+          error: "Bu telefon numarası birden fazla bağımsız müşteri kaydıyla eşleşiyor. Lütfen mevcut müşterilerden birini seçin.",
+        };
+      }
+      if (err.code === "CUSTOMER_PHONE_INVALID") {
+        return { success: false, error: "Lütfen geçerli bir telefon numarası girin." };
+      }
+      return { success: false, error: "Müşteri kaydı güvenli biçimde çözümlenemedi. Lütfen tekrar deneyin." };
+    }
     const msg = err instanceof Error ? err.message : String(err);
     
     if (msg.includes("Customer not found or does not belong to the business")) {

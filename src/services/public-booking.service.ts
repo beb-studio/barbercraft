@@ -5,6 +5,7 @@ import {
   formatInstantInBusinessTimezone,
   getBusinessLocalToday,
 } from "@/lib/timezone";
+import { isCustomerDomainError } from "@/lib/customer-domain-errors";
 
 export interface PublicBusiness {
   slug: string;
@@ -661,6 +662,19 @@ export const PublicBookingService = {
         formattedPrice: appointment.servicePriceSnapshot, // Might need proper i18n formatting based on currency, but snapshot is a numeric string
       };
     } catch (error) {
+      if (isCustomerDomainError(error)) {
+        if (error.code === "CUSTOMER_IDENTITY_AMBIGUOUS") {
+          throw new Error(
+            "VALIDATION_ERROR: Bu telefon numarasıyla birden fazla müşteri kaydı bulundu. Lütfen işletmeyle iletişime geçin."
+          );
+        }
+        if (error.code === "CUSTOMER_PHONE_INVALID") {
+          throw new Error("VALIDATION_ERROR: Lütfen geçerli bir telefon numarası giriniz.");
+        }
+        throw new Error(
+          "VALIDATION_ERROR: Müşteri kaydı güvenli biçimde çözümlenemedi. Lütfen işletmeyle iletişime geçin."
+        );
+      }
       const e = error as Error;
       if (
         e.message === "Time slot not available (staff closed or not bookable)" ||

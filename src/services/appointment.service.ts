@@ -4,8 +4,8 @@ import { getStaffAvailability } from "./availability.service";
 import { formatInstantInBusinessTimezone, parseDateTimeInBusinessTimezone, getLocalDayBounds } from "../lib/timezone";
 import { toZonedTime } from "date-fns-tz";
 import { getDay } from "date-fns";
-import { sql, eq, and } from "drizzle-orm";
-import { customers } from "../db/schema/customers";
+import { sql } from "drizzle-orm";
+import { resolveCanonicalCustomer } from "@/services/customer-resolution.service";
 
 export interface CreateAppointmentInput {
   businessId: string;
@@ -125,11 +125,12 @@ export const AppointmentService = {
       // 4. Create appointment
       let resolvedCustomerId: string;
       if (input.customerId) {
-        const [existing] = await tx
-          .select({ id: customers.id })
-          .from(customers)
-          .where(and(eq(customers.id, input.customerId), eq(customers.businessId, input.businessId)))
-          .limit(1);
+        const existing = await resolveCanonicalCustomer(
+          tx,
+          input.businessId,
+          input.customerId,
+          { lock: true }
+        );
 
         if (!existing) {
           throw new Error("Customer not found or does not belong to the business");
@@ -215,11 +216,12 @@ export const AppointmentService = {
       // 6. Proceed to write operations
       let resolvedCustomerId: string;
       if (input.customerId) {
-        const [existing] = await tx
-          .select({ id: customers.id })
-          .from(customers)
-          .where(and(eq(customers.id, input.customerId), eq(customers.businessId, input.businessId)))
-          .limit(1);
+        const existing = await resolveCanonicalCustomer(
+          tx,
+          input.businessId,
+          input.customerId,
+          { lock: true }
+        );
 
         if (!existing) {
           throw new Error("Customer not found or does not belong to the business");

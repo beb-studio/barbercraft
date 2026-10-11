@@ -1,6 +1,7 @@
 // Starts a throwaway real PostgreSQL server (embedded-postgres), and applies
 // every Drizzle migration in drizzle/migrations in order, from scratch.
 import fs from "node:fs";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -22,23 +23,38 @@ export async function applyMigrationFile(pool, file) {
   }
 }
 
-export async function startDatabase({
-  port = Math.floor(Math.random() * 10000) + 40000,
-  throughMigration,
-} = {}) {
+async function getAvailablePort() {
+  return new Promise((resolve, reject) => {
+    const socket = net.createServer();
+    socket.unref();
+    socket.once("error", reject);
+    socket.listen(0, "127.0.0.1", () => {
+      const address = socket.address();
+      const port = typeof address === "object" && address ? address.port : null;
+      socket.close((error) => {
+        if (error) reject(error);
+        else if (port === null) reject(new Error("Could not allocate a PostgreSQL test port."));
+        else resolve(port);
+      });
+    });
+  });
+}
+
+export async function startDatabase({ port, throughMigration } = {}) {
+  const databasePort = port ?? (await getAvailablePort());
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "barber-pg-"));
   const server = new EmbeddedPostgres({
     databaseDir: dir,
     user: "postgres",
     password: "postgres",
-    port,
+    port: databasePort,
     persistent: false,
   });
   await server.initialise();
   await server.start();
   await server.createDatabase("app");
 
-  const connectionString = `postgresql://postgres:postgres@localhost:${port}/app`;
+  const connectionString = `postgresql://postgres:postgres@localhost:${databasePort}/app`;
   const pool = new pg.Pool({ connectionString, max: 4 });
 
   const allFiles = fs
