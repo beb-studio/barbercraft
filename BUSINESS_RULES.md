@@ -82,6 +82,7 @@
 | Manage Time Blocks | Yes | Yes | Yes (own blocks) | No |
 | Manage Customers (CRM Directory, Details, Notes) | Yes | Yes | No (Lookup only for booking) | No |
 | Review & Merge Duplicate Customers | Yes | Yes | No | No |
+| Configure Public Booking Rules | Yes | Yes | No | No |
 | View Own Appointment Through Secret Link | No tenant role required | No tenant role required | No tenant role required | Yes, valid capability only |
 | Cancel Own Future Appointment Through Secret Link | No tenant role required | No tenant role required | No tenant role required | Yes, valid capability only |
 | Reschedule Own Future Appointment Through Secret Link | No tenant role required | No tenant role required | No tenant role required | Yes, valid capability only |
@@ -481,3 +482,20 @@
 8. Policy changes do not mutate existing appointments, snapshots, access tokens, customers, or CRM history. Current policy controls later public booking/cancellation/reschedule decisions; V1 stores no per-appointment policy snapshot.
 9. These rules govern public booking and capability self-service only. Manual/internal booking and authenticated internal rescheduling remain subject to existing schedule/conflict/lifecycle rules, not public policy windows.
 10. Business suspension/onboarding, staff/service eligibility, working hours, time blocks, conflicts, and capability validity remain independent mandatory gates; booking policy cannot bypass them.
+
+---
+
+## 20. Booking Policy Settings Rules (TASK 015B)
+
+1. Active tenant `OWNER` and `ADMIN` memberships may read and update `/dashboard/settings/booking`; `STAFF`, unauthenticated users, and platform-only administrators may not.
+2. Tenant authority is derived server-side. The settings mutation accepts no browser-authoritative business identifier and cannot target another tenant by forged input.
+3. Lead, cancellation notice, and reschedule notice are entered as whole-number amount plus minute/hour/day unit, converted with checked integer arithmetic, and validated against TASK 015A bounds. Decimal, negative, overflow, and excessive values are rejected.
+4. Existing minute values render without precision loss: exact ordinary days are days, exact sub-day hours are hours, zero is minutes, and values such as 1500 minutes remain minutes rather than being rounded or reinterpreted.
+5. Unlimited maximum advance is an explicit state and persists exactly as `NULL`; finite mode requires `1..730` calendar days.
+6. All four values update atomically. Invalid input changes none of them and policy mutation changes no appointment, access token, service snapshot, customer, or unrelated business column.
+7. The exact current business `updated_at` value is an optimistic concurrency marker. After one operator commits, a stale form cannot silently overwrite it; current committed values are returned for review.
+8. Policy remains current state rather than an appointment snapshot. Updated cancellation/reschedule windows may affect existing appointments' later public actions without rewriting those appointments.
+9. Public booking quick dates and native date controls reflect the configured inclusive business-local horizon, and the UI presents lead/horizon guidance. The server remains authoritative against direct or stale requests.
+10. Public management read access remains available when a notice window closes. The UI may explain that online cancellation or rescheduling has ended without exposing internal policy codes.
+11. Manual/internal booking and authenticated internal rescheduling remain outside these public-customer policy restrictions.
+12. Onboarding remains unchanged, and TASK 015 introduces no notification, customer-account, billing, loyalty, or marketing behavior.

@@ -78,3 +78,15 @@ The application is engineered strictly **mobile-first**.
 4. Before mutation, compare `Mevcut Randevu` and `Yeni Randevu` date/start/end values and require explicit `Randevuyu Değiştir` confirmation. `Vazgeç` and Escape close the dialog without mutation.
 5. Pending state disables conflicting reschedule/cancel controls and announces `Randevu Değiştiriliyor...`. Success and error feedback use polite live regions.
 6. A stale slot is never replaced automatically. Keep the old schedule, refresh current truth/slots, and ask the customer to choose again.
+
+---
+
+## 6. Booking Policy Settings
+
+1. OWNER/ADMIN policy controls live at `/dashboard/settings/booking`; STAFF receives neither the navigation entry nor the route content.
+2. Every duration presents a labeled amount and keyboard-usable unit selector. Existing values must round-trip exactly; the interface never silently rounds minutes.
+3. Unlimited maximum advance is a labeled checkbox state. Finite mode reveals an associated whole-day input, and `NULL` remains the only persisted unlimited representation.
+4. The committed policy summary is distinct from editable controls. A successful save refreshes it from server truth; a stale save replaces the form with current values and explains what happened.
+5. Inputs and actions meet the 44px touch target. Help text is associated with controls, pending state disables conflicting input, and success/errors are announced with live-region semantics.
+6. Public booking date controls must not encourage dates beyond the trusted business-local horizon. Lead/horizon guidance is concise; server-derived availability remains authoritative.
+7. When notice alone closes online cancellation/rescheduling, `/randevu` explains that the customer may contact the business while retaining secure read access.

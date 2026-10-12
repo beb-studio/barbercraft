@@ -13,6 +13,7 @@ import {
   Menu,
   X,
   User,
+  Settings,
 } from "lucide-react";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { Badge } from "@/components/ui/badge";
@@ -60,12 +61,14 @@ export function DashboardShell({
       label: "Genel Bakış",
       icon: LayoutDashboard,
       exact: true,
+      showInBottomNav: true,
     },
     {
       href: "/dashboard/appointments",
       label: "Randevular",
       icon: Calendar,
       exact: false,
+      showInBottomNav: true,
     },
     ...(userRole === "OWNER" || userRole === "ADMIN"
       ? [
@@ -74,18 +77,28 @@ export function DashboardShell({
             label: "Hizmetler",
             icon: Scissors,
             exact: false,
+            showInBottomNav: true,
           },
           {
             href: "/dashboard/staff",
             label: "Personel",
             icon: Users,
             exact: false,
+            showInBottomNav: true,
           },
           {
             href: "/dashboard/customers",
             label: "Müşteriler",
             icon: User,
             exact: false,
+            showInBottomNav: true,
+          },
+          {
+            href: "/dashboard/settings/booking",
+            label: "Ayarlar",
+            icon: Settings,
+            exact: false,
+            showInBottomNav: false,
           },
         ]
       : []),
@@ -347,6 +360,8 @@ export function DashboardShell({
                 ? "Personel"
                 : pathname.startsWith("/dashboard/customers")
                 ? "Müşteriler"
+                : pathname.startsWith("/dashboard/settings")
+                ? "Randevu Kuralları"
                 : "Yönetim"}
             </span>
           </div>
@@ -380,7 +395,7 @@ export function DashboardShell({
         aria-label="Mobil Alt Menü"
       >
         <div className="flex h-16 items-center justify-around px-2">
-          {navItems.map((item) => {
+          {navItems.filter((item) => item.showInBottomNav).map((item) => {
             const Icon = item.icon;
             const active = isLinkActive(item.href, item.exact);
             return (

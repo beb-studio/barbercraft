@@ -55,6 +55,7 @@ System user accounts.
 - `active` (boolean, default true, NOT NULL)
 - `created_at`, `updated_at` (timestamptz, NOT NULL)
 - Policy semantics: lead time is an exact-instant public booking boundary; maximum advance is an inclusive business-local calendar-date boundary. Current policy controls later public actions and is not snapshotted onto appointments. `NULL` maximum advance preserves unlimited historical behavior. Internal/manual scheduling does not consume these public-only limits.
+- Settings concurrency: `businesses.updated_at` is read as an exact PostgreSQL text value and used as an opaque optimistic version. Policy update locks the business row, rejects a mismatched version, and writes all four policy columns together; no extra version column or policy table is required.
 
 ### 3.3 `business_members`
 Connects users to businesses with role assignments.

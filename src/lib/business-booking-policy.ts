@@ -105,6 +105,19 @@ function addLocalCalendarDays(localDate: string, days: number): string {
   return result.toISOString().slice(0, 10);
 }
 
+export function getMaximumPublicBookingLocalDate(input: {
+  referenceNow: Date;
+  businessTimezone: string;
+  maximumAdvanceBookingDays: number | null;
+}): string | null {
+  if (input.maximumAdvanceBookingDays === null) return null;
+  const localToday = formatInstantInBusinessTimezone(
+    input.referenceNow,
+    input.businessTimezone
+  ).dateStr;
+  return addLocalCalendarDays(localToday, input.maximumAdvanceBookingDays);
+}
+
 export type PublicBookingPolicyDecision =
   | { allowed: true }
   | {
@@ -130,14 +143,11 @@ export function canPubliclyBookAt(input: {
   }
 
   if (input.policy.maximumAdvanceBookingDays !== null) {
-    const localToday = formatInstantInBusinessTimezone(
-      input.referenceNow,
-      input.businessTimezone
-    ).dateStr;
-    const finalAllowedDate = addLocalCalendarDays(
-      localToday,
-      input.policy.maximumAdvanceBookingDays
-    );
+    const finalAllowedDate = getMaximumPublicBookingLocalDate({
+      referenceNow: input.referenceNow,
+      businessTimezone: input.businessTimezone,
+      maximumAdvanceBookingDays: input.policy.maximumAdvanceBookingDays,
+    })!;
     const requestedLocalDate = formatInstantInBusinessTimezone(
       input.requestedStart,
       input.businessTimezone

@@ -288,7 +288,11 @@ export function AppointmentManagementClient() {
       day: format(date, "d"),
       month: format(date, "MMM", { locale: tr }),
     };
-  });
+  }).filter(
+    (item) =>
+      appointment.maximumRescheduleLocalDate === null ||
+      item.localDate <= appointment.maximumRescheduleLocalDate
+  );
 
   return (
     <main className="min-h-screen px-4 py-8 sm:px-6 sm:py-12 lg:py-16">
@@ -390,6 +394,24 @@ export function AppointmentManagementClient() {
           </div>
         )}
 
+        {(appointment.cancellationWindowClosed ||
+          appointment.rescheduleWindowClosed) && (
+          <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+            {appointment.cancellationWindowClosed && (
+              <p>
+                Çevrim içi iptal süresi doldu. İşletmeyle iletişime
+                geçebilirsiniz.
+              </p>
+            )}
+            {appointment.rescheduleWindowClosed && (
+              <p>
+                Çevrim içi değişiklik süresi doldu. İşletmeyle
+                iletişime geçebilirsiniz.
+              </p>
+            )}
+          </div>
+        )}
+
         {rescheduleOpen && appointment.canReschedule && (
           <section
             className="mt-6 rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-7"
@@ -439,6 +461,7 @@ export function AppointmentManagementClient() {
                   id="public-reschedule-date"
                   type="date"
                   min={appointment.businessLocalToday}
+                  max={appointment.maximumRescheduleLocalDate ?? undefined}
                   value={selectedDate}
                   onChange={(event) => {
                     if (event.target.value) {

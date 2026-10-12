@@ -12,7 +12,10 @@ import {
   canPubliclyCancelAppointment,
   canPubliclyRescheduleAppointment,
 } from "@/lib/appointment-lifecycle";
-import { getBusinessBookingPolicy } from "@/lib/business-booking-policy";
+import {
+  getBusinessBookingPolicy,
+  getMaximumPublicBookingLocalDate,
+} from "@/lib/business-booking-policy";
 import { AppointmentAccessRepository } from "@/repositories/appointment-access.repository";
 import {
   getStaffAvailability,
@@ -41,6 +44,9 @@ export interface AppointmentManagementView {
   businessLocalToday: string;
   canCancel: boolean;
   canReschedule: boolean;
+  cancellationWindowClosed: boolean;
+  rescheduleWindowClosed: boolean;
+  maximumRescheduleLocalDate: string | null;
 }
 
 export interface AppointmentRescheduleSlot {
@@ -149,6 +155,20 @@ async function toManagementView(
       executor,
     }));
   const policy = getBusinessBookingPolicy(row);
+  const cancellationDecision = canPubliclyCancelAppointment({
+    status: row.status,
+    startsAt: row.startTime,
+    referenceNow,
+    policy,
+  });
+  const rescheduleDecision = canPubliclyRescheduleAppointment({
+    status: row.status,
+    startsAt: row.startTime,
+    referenceNow,
+    publicSchedulingEligible,
+    policy,
+  });
+  const beforeStart = referenceNow.getTime() < row.startTime.getTime();
 
   return {
     businessName: row.businessName,
@@ -166,19 +186,23 @@ async function toManagementView(
       row.businessTimezone,
       referenceNow
     ),
-    canCancel: canPubliclyCancelAppointment({
-      status: row.status,
-      startsAt: row.startTime,
+    canCancel: cancellationDecision.allowed,
+    canReschedule: rescheduleDecision.allowed,
+    cancellationWindowClosed:
+      !cancellationDecision.allowed &&
+      cancellationDecision.reason === "TOO_LATE" &&
+      policy.cancellationNoticeMinutes > 0 &&
+      beforeStart,
+    rescheduleWindowClosed:
+      !rescheduleDecision.allowed &&
+      rescheduleDecision.reason === "TOO_LATE" &&
+      policy.rescheduleNoticeMinutes > 0 &&
+      beforeStart,
+    maximumRescheduleLocalDate: getMaximumPublicBookingLocalDate({
       referenceNow,
-      policy,
-    }).allowed,
-    canReschedule: canPubliclyRescheduleAppointment({
-      status: row.status,
-      startsAt: row.startTime,
-      referenceNow,
-      publicSchedulingEligible,
-      policy,
-    }).allowed,
+      businessTimezone: row.businessTimezone,
+      maximumAdvanceBookingDays: policy.maximumAdvanceBookingDays,
+    }),
   };
 }
 

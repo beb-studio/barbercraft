@@ -42,6 +42,8 @@ interface ScheduleFlowProps {
   staffSelection?: PublicStaffSelection;
   initialDate: string; // YYYY-MM-DD
   initialSlots: PublicAvailabilitySlot[];
+  maximumLocalDate: string | null;
+  minimumLeadGuidance: string | null;
 }
 
 export function ScheduleFlow({
@@ -51,6 +53,8 @@ export function ScheduleFlow({
   staffSelection,
   initialDate,
   initialSlots,
+  maximumLocalDate,
+  minimumLeadGuidance,
 }: ScheduleFlowProps) {
   const router = useRouter();
   const isAnyStaff = staffSelection?.kind === "ANY" || staff.id === "any";
@@ -73,10 +77,13 @@ export function ScheduleFlow({
     const dayNum = format(d, "d");
     const monthName = format(d, "MMM", { locale: tr });
     return { dateStr, dayName, dayNum, monthName };
-  });
+  }).filter(
+    (item) => maximumLocalDate === null || item.dateStr <= maximumLocalDate
+  );
 
   const handleSelectDate = (dateStr: string) => {
     if (selectedDate === dateStr) return;
+    if (maximumLocalDate !== null && dateStr > maximumLocalDate) return;
 
     setSelectedDate(dateStr);
     setSelectedSlot(null);
@@ -224,7 +231,7 @@ export function ScheduleFlow({
               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">2</span>
               <span className="text-sm font-semibold text-muted-foreground">Adım 2 / 3</span>
             </div>
-            <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between">
               <h2 id="step-date-heading" className="text-2xl font-bold tracking-tight text-foreground">Tarih Seçimi</h2>
               <div className="flex items-center gap-1 relative">
                 <label htmlFor="custom-date-picker" className="text-sm text-primary font-medium cursor-pointer flex items-center gap-1.5 hover:underline bg-primary/5 px-3 py-1.5 rounded-md">
@@ -235,6 +242,7 @@ export function ScheduleFlow({
                   id="custom-date-picker"
                   type="date"
                   min={initialDate}
+                  max={maximumLocalDate ?? undefined}
                   value={selectedDate}
                   onChange={(e) => {
                     if (e.target.value) handleSelectDate(e.target.value);
@@ -244,6 +252,17 @@ export function ScheduleFlow({
               </div>
             </div>
 
+            {(minimumLeadGuidance || maximumLocalDate) && (
+              <div className="rounded-xl border border-primary/15 bg-primary/5 px-4 py-3 text-sm leading-6 text-muted-foreground">
+                {minimumLeadGuidance && <p>{minimumLeadGuidance}</p>}
+                {maximumLocalDate && (
+                  <p>
+                    Randevu tarihleri en geç {format(parseISO(maximumLocalDate), "d MMMM yyyy", { locale: tr })} gününe kadar seçilebilir.
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="flex gap-2 overflow-x-auto pb-2 pt-1 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 scroll-smooth">
               {upcomingDates.map((item) => {
                 const isSelected = selectedDate === item.dateStr;
@@ -252,8 +271,9 @@ export function ScheduleFlow({
                     key={item.dateStr}
                     type="button"
                     onClick={() => handleSelectDate(item.dateStr)}
+                    aria-pressed={isSelected}
                     className={cn(
-                      "flex flex-col items-center justify-center min-w-[72px] py-3 px-2 rounded-xl border transition-all cursor-pointer min-h-[80px] shrink-0 select-none",
+                      "flex flex-col items-center justify-center min-w-[72px] py-3 px-2 rounded-xl border transition-all cursor-pointer min-h-[80px] shrink-0 select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                       isSelected ? "border-primary bg-primary text-primary-foreground shadow-md scale-105" : "border-border bg-card text-foreground hover:border-primary/40 hover:bg-muted/30"
                     )}
                   >
@@ -299,8 +319,9 @@ export function ScheduleFlow({
                       key={slot.startAt}
                       type="button"
                       onClick={() => handleSelectSlot(slot)}
+                      aria-pressed={isSelected}
                       className={cn(
-                        "flex items-center justify-center py-3.5 px-2 rounded-xl border font-bold text-sm sm:text-base transition-all cursor-pointer min-h-[56px] select-none",
+                        "flex items-center justify-center py-3.5 px-2 rounded-xl border font-bold text-sm sm:text-base transition-all cursor-pointer min-h-[56px] select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                         isSelected ? "border-primary bg-primary text-primary-foreground ring-2 ring-primary/30 shadow-md scale-[1.02]" : "border-border bg-card text-foreground hover:border-primary/50 hover:bg-muted/40"
                       )}
                     >

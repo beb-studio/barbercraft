@@ -423,3 +423,18 @@ drizzle/
   - The shared availability engine loads policy from the authoritative business row and filters only `PUBLIC` slots. Specific-staff, `Fark Etmez`, final booking transactions, capability availability, and public reschedule mutation all use the same rule.
   - Public cancellation and current-appointment reschedule eligibility reload policy inside their locked transaction. Reschedule target slots must also satisfy current public lead/horizon policy.
   - Manual appointment creation, authenticated internal availability, and internal rescheduling explicitly use `INTERNAL` context and remain outside customer-facing lead, horizon, and notice policy.
+
+### 3.21 Business Booking Policy Settings (TASK 015B)
+- **Authorized settings boundary**:
+  - `/dashboard/settings/booking` is visible and accessible only to an active tenant `OWNER` or `ADMIN`. `STAFF`, unauthenticated users, and platform administrators without tenant membership receive no settings authority.
+  - The update action accepts no `businessId`. It derives the active tenant from the authenticated membership, parses presentation values, converts them to canonical minutes/days, and delegates to the centralized validator/service.
+- **Lossless presentation model**:
+  - Lead, cancellation notice, and reschedule notice use whole-number amount plus `Dakika` / `Saat` / `Gün`. Persisted values display in the largest exact ordinary unit without rounding; non-divisible or non-ordinary values remain minutes.
+  - Maximum advance uses either a positive day count or an explicit `Sınırsız` control that persists `NULL`. Zero and sentinel numbers never represent unlimited mode.
+- **Atomic and concurrent mutation**:
+  - All four policy columns update together inside one transaction. The repository locks the business row and compares the exact PostgreSQL `updated_at::text` value supplied as an opaque optimistic version marker.
+  - A stale submission writes nothing and returns current committed values with sanitized Turkish recovery guidance. Validation, authorization, and database failures never expose SQLSTATE, constraint, Drizzle, or stack details.
+- **Public and internal UX boundary**:
+  - Public booking date controls use the inclusive business-local maximum date and show concise human-readable lead/horizon guidance while server availability remains authoritative.
+  - `/randevu` keeps read access and explains when an otherwise-operational appointment is outside the current online cancellation/reschedule notice window. Manual booking and internal rescheduling remain exempt.
+  - Onboarding is unchanged; compatibility defaults remain sufficient until an authorized operator chooses to customize policy.
