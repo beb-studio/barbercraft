@@ -12,6 +12,8 @@ import {
   staffWorkingHours,
   customers,
   appointments,
+  businessNotificationSettings,
+  businessNotificationReminderRules,
 } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 
@@ -210,6 +212,31 @@ export async function bootstrapQA(credentials: QACredentials): Promise<QABootstr
       .returning();
     businessId = createdBiz.id;
   }
+
+  // Keep QA notification behavior inert and deterministic. The database
+  // trigger covers newly created businesses; this upsert also normalizes a
+  // pre-existing QA tenant without ever creating a recipient or plan.
+  await db
+    .insert(businessNotificationSettings)
+    .values({
+      businessId,
+      customerNotificationsEnabled: false,
+      appointmentCreatedEnabled: true,
+      appointmentRescheduledEnabled: true,
+      appointmentCancelledEnabled: true,
+    })
+    .onConflictDoUpdate({
+      target: businessNotificationSettings.businessId,
+      set: {
+        customerNotificationsEnabled: false,
+        appointmentCreatedEnabled: true,
+        appointmentRescheduledEnabled: true,
+        appointmentCancelledEnabled: true,
+      },
+    });
+  await db
+    .delete(businessNotificationReminderRules)
+    .where(eq(businessNotificationReminderRules.businessId, businessId));
 
   // 4. Ensure Business Memberships
   // OWNER

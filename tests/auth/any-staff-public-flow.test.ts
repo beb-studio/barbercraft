@@ -39,8 +39,8 @@ const svcInactive = uuid(513);
 const svcOtherBiz = uuid(514);
 
 // Monday test date (future)
-const TARGET_MONDAY = "2026-10-12";
-const REF_NOW = new Date("2026-10-12T05:00:00.000Z");
+const TARGET_MONDAY = "2026-10-19";
+const REF_NOW = new Date("2026-10-19T05:00:00.000Z");
 
 before(async () => {
   pgServer = await startDatabase();

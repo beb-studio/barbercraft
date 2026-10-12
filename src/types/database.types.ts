@@ -223,6 +223,79 @@ export type Database = {
           },
         ];
       };
+      business_notification_reminder_rules: {
+        Row: {
+          business_id: string;
+          created_at: string;
+          enabled: boolean;
+          id: string;
+          minutes_before: number;
+          updated_at: string;
+        };
+        Insert: {
+          business_id: string;
+          created_at?: string;
+          enabled?: boolean;
+          id?: string;
+          minutes_before: number;
+          updated_at?: string;
+        };
+        Update: {
+          business_id?: string;
+          created_at?: string;
+          enabled?: boolean;
+          id?: string;
+          minutes_before?: number;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "business_notification_reminder_rules_business_fkey";
+            columns: ["business_id"];
+            isOneToOne: false;
+            referencedRelation: "businesses";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      business_notification_settings: {
+        Row: {
+          appointment_cancelled_enabled: boolean;
+          appointment_created_enabled: boolean;
+          appointment_rescheduled_enabled: boolean;
+          business_id: string;
+          created_at: string;
+          customer_notifications_enabled: boolean;
+          updated_at: string;
+        };
+        Insert: {
+          appointment_cancelled_enabled?: boolean;
+          appointment_created_enabled?: boolean;
+          appointment_rescheduled_enabled?: boolean;
+          business_id: string;
+          created_at?: string;
+          customer_notifications_enabled?: boolean;
+          updated_at?: string;
+        };
+        Update: {
+          appointment_cancelled_enabled?: boolean;
+          appointment_created_enabled?: boolean;
+          appointment_rescheduled_enabled?: boolean;
+          business_id?: string;
+          created_at?: string;
+          customer_notifications_enabled?: boolean;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "business_notification_settings_business_fkey";
+            columns: ["business_id"];
+            isOneToOne: true;
+            referencedRelation: "businesses";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       business_working_hours: {
         Row: {
           business_id: string;
@@ -442,6 +515,199 @@ export type Database = {
             columns: ["business_id", "merged_into_customer_id"];
             isOneToOne: false;
             referencedRelation: "customers";
+            referencedColumns: ["business_id", "id"];
+          },
+        ];
+      };
+      notification_deliveries: {
+        Row: {
+          attempt_count: number;
+          available_at: string;
+          business_id: string;
+          channel: Database["public"]["Enums"]["notification_delivery_channel"];
+          created_at: string;
+          failed_at: string | null;
+          id: string;
+          last_error_code: string | null;
+          locked_at: string | null;
+          locked_by: string | null;
+          plan_id: string;
+          provider: string;
+          provider_message_id: string | null;
+          recipient: string;
+          sent_at: string | null;
+          status: Database["public"]["Enums"]["notification_delivery_status"];
+          updated_at: string;
+        };
+        Insert: {
+          attempt_count?: number;
+          available_at?: string;
+          business_id: string;
+          channel?: Database["public"]["Enums"]["notification_delivery_channel"];
+          created_at?: string;
+          failed_at?: string | null;
+          id?: string;
+          last_error_code?: string | null;
+          locked_at?: string | null;
+          locked_by?: string | null;
+          plan_id: string;
+          provider: string;
+          provider_message_id?: string | null;
+          recipient: string;
+          sent_at?: string | null;
+          status?: Database["public"]["Enums"]["notification_delivery_status"];
+          updated_at?: string;
+        };
+        Update: {
+          attempt_count?: number;
+          available_at?: string;
+          business_id?: string;
+          channel?: Database["public"]["Enums"]["notification_delivery_channel"];
+          created_at?: string;
+          failed_at?: string | null;
+          id?: string;
+          last_error_code?: string | null;
+          locked_at?: string | null;
+          locked_by?: string | null;
+          plan_id?: string;
+          provider?: string;
+          provider_message_id?: string | null;
+          recipient?: string;
+          sent_at?: string | null;
+          status?: Database["public"]["Enums"]["notification_delivery_status"];
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "notification_deliveries_plan_fkey";
+            columns: ["business_id", "plan_id"];
+            isOneToOne: false;
+            referencedRelation: "notification_plans";
+            referencedColumns: ["business_id", "id"];
+          },
+        ];
+      };
+      notification_outbox: {
+        Row: {
+          appointment_id: string;
+          attempt_count: number;
+          available_at: string;
+          business_id: string;
+          created_at: string;
+          event_type: Database["public"]["Enums"]["appointment_notification_event_type"];
+          id: string;
+          idempotency_key: string;
+          last_error_code: string | null;
+          locked_at: string | null;
+          locked_by: string | null;
+          payload: NonNullable<Json>;
+          payload_version: number;
+          processed_at: string | null;
+          status: Database["public"]["Enums"]["notification_outbox_status"];
+          updated_at: string;
+        };
+        Insert: {
+          appointment_id: string;
+          attempt_count?: number;
+          available_at?: string;
+          business_id: string;
+          created_at?: string;
+          event_type: Database["public"]["Enums"]["appointment_notification_event_type"];
+          id?: string;
+          idempotency_key: string;
+          last_error_code?: string | null;
+          locked_at?: string | null;
+          locked_by?: string | null;
+          payload: NonNullable<Json>;
+          payload_version?: number;
+          processed_at?: string | null;
+          status?: Database["public"]["Enums"]["notification_outbox_status"];
+          updated_at?: string;
+        };
+        Update: {
+          appointment_id?: string;
+          attempt_count?: number;
+          available_at?: string;
+          business_id?: string;
+          created_at?: string;
+          event_type?: Database["public"]["Enums"]["appointment_notification_event_type"];
+          id?: string;
+          idempotency_key?: string;
+          last_error_code?: string | null;
+          locked_at?: string | null;
+          locked_by?: string | null;
+          payload?: NonNullable<Json>;
+          payload_version?: number;
+          processed_at?: string | null;
+          status?: Database["public"]["Enums"]["notification_outbox_status"];
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "notification_outbox_appointment_fkey";
+            columns: ["business_id", "appointment_id"];
+            isOneToOne: false;
+            referencedRelation: "appointments";
+            referencedColumns: ["business_id", "id"];
+          },
+        ];
+      };
+      notification_plans: {
+        Row: {
+          appointment_id: string;
+          business_id: string;
+          cancelled_at: string | null;
+          created_at: string;
+          id: string;
+          idempotency_key: string;
+          reminder_offset_minutes: number | null;
+          scheduled_for: string;
+          source_outbox_id: string | null;
+          status: Database["public"]["Enums"]["notification_plan_status"];
+          type: Database["public"]["Enums"]["notification_plan_type"];
+          updated_at: string;
+        };
+        Insert: {
+          appointment_id: string;
+          business_id: string;
+          cancelled_at?: string | null;
+          created_at?: string;
+          id?: string;
+          idempotency_key: string;
+          reminder_offset_minutes?: number | null;
+          scheduled_for: string;
+          source_outbox_id?: string | null;
+          status?: Database["public"]["Enums"]["notification_plan_status"];
+          type: Database["public"]["Enums"]["notification_plan_type"];
+          updated_at?: string;
+        };
+        Update: {
+          appointment_id?: string;
+          business_id?: string;
+          cancelled_at?: string | null;
+          created_at?: string;
+          id?: string;
+          idempotency_key?: string;
+          reminder_offset_minutes?: number | null;
+          scheduled_for?: string;
+          source_outbox_id?: string | null;
+          status?: Database["public"]["Enums"]["notification_plan_status"];
+          type?: Database["public"]["Enums"]["notification_plan_type"];
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "notification_plans_appointment_fkey";
+            columns: ["business_id", "appointment_id"];
+            isOneToOne: false;
+            referencedRelation: "appointments";
+            referencedColumns: ["business_id", "id"];
+          },
+          {
+            foreignKeyName: "notification_plans_source_outbox_fkey";
+            columns: ["business_id", "source_outbox_id"];
+            isOneToOne: false;
+            referencedRelation: "notification_outbox";
             referencedColumns: ["business_id", "id"];
           },
         ];
@@ -874,9 +1140,22 @@ export type Database = {
       is_valid_timezone: { Args: { tz: string }; Returns: boolean };
     };
     Enums: {
+      appointment_notification_event_type:
+        | "APPOINTMENT_CREATED"
+        | "APPOINTMENT_RESCHEDULED"
+        | "APPOINTMENT_CANCELLED";
       appointment_source: "PUBLIC_WEB" | "MANUAL_ADMIN" | "MANUAL_STAFF";
       appointment_status: "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED" | "NO_SHOW";
       business_member_role: "OWNER" | "ADMIN" | "STAFF";
+      notification_delivery_channel: "SMS";
+      notification_delivery_status: "PENDING" | "PROCESSING" | "SENT" | "FAILED" | "CANCELLED";
+      notification_outbox_status: "PENDING" | "PROCESSING" | "PROCESSED" | "FAILED";
+      notification_plan_status: "PENDING" | "CANCELLED";
+      notification_plan_type:
+        | "APPOINTMENT_CREATED"
+        | "APPOINTMENT_RESCHEDULED"
+        | "APPOINTMENT_CANCELLED"
+        | "APPOINTMENT_REMINDER";
       platform_admin_role: "SUPER_ADMIN" | "ADMIN";
       time_block_type: "TIME_OFF" | "BREAK" | "BLOCKED";
     };
@@ -994,9 +1273,24 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      appointment_notification_event_type: [
+        "APPOINTMENT_CREATED",
+        "APPOINTMENT_RESCHEDULED",
+        "APPOINTMENT_CANCELLED",
+      ],
       appointment_source: ["PUBLIC_WEB", "MANUAL_ADMIN", "MANUAL_STAFF"],
       appointment_status: ["PENDING", "CONFIRMED", "CANCELLED", "COMPLETED", "NO_SHOW"],
       business_member_role: ["OWNER", "ADMIN", "STAFF"],
+      notification_delivery_channel: ["SMS"],
+      notification_delivery_status: ["PENDING", "PROCESSING", "SENT", "FAILED", "CANCELLED"],
+      notification_outbox_status: ["PENDING", "PROCESSING", "PROCESSED", "FAILED"],
+      notification_plan_status: ["PENDING", "CANCELLED"],
+      notification_plan_type: [
+        "APPOINTMENT_CREATED",
+        "APPOINTMENT_RESCHEDULED",
+        "APPOINTMENT_CANCELLED",
+        "APPOINTMENT_REMINDER",
+      ],
       platform_admin_role: ["SUPER_ADMIN", "ADMIN"],
       time_block_type: ["TIME_OFF", "BREAK", "BLOCKED"],
     },

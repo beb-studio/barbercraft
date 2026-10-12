@@ -295,6 +295,7 @@ after(async () => {
 });
 
 beforeEach(async () => {
+  await db.delete(schema.notificationOutbox);
   await db.delete(schema.appointmentAccessTokens);
   await db.delete(schema.appointments);
   await db.delete(schema.timeBlocks);

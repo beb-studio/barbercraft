@@ -438,3 +438,58 @@ drizzle/
   - Public booking date controls use the inclusive business-local maximum date and show concise human-readable lead/horizon guidance while server availability remains authoritative.
   - `/randevu` keeps read access and explains when an otherwise-operational appointment is outside the current online cancellation/reschedule notice window. Manual booking and internal rescheduling remain exempt.
   - Onboarding is unchanged; compatibility defaults remain sufficient until an authorized operator chooses to customize policy.
+
+### 3.22 Durable Notification Outbox (TASK 016A)
+
+- **Transactional event boundary**:
+  - The provider-neutral vocabulary is deliberately limited to `APPOINTMENT_CREATED`, `APPOINTMENT_RESCHEDULED`, and `APPOINTMENT_CANCELLED`. `COMPLETED` and `NO_SHOW` remain ordinary lifecycle mutations and emit no customer-notification intent in V1.
+  - Every authoritative specific-staff, `Fark Etmez`, and manual creation inserts its event after the appointment row and before transaction commit. Internal/public rescheduling and internal/public cancellation insert their event after the actual mutation in the same existing staff/appointment-locked transaction.
+  - Appointment success and event durability are one atomic outcome: either both commit or both roll back. External provider calls are forbidden in this transaction.
+- **Versioned, minimal history**:
+  - `payload_version = 1` payloads retain only event-time status and schedule facts. Reschedule stores old/new start and end instants; cancellation stores the scheduled interval and prior status.
+  - Payloads never contain raw appointment capabilities, capability URLs, provider credentials, notes, CRM data, merge lineage, or arbitrary ORM records. Recipient identity/contact is intentionally resolved later by a delivery planner under then-current rules.
+  - Deterministic SHA-256 idempotency keys use the trusted tenant/appointment mutation identity. Creation and cancellation have one lifetime key; each reschedule includes the exact locked prior appointment version plus old/new schedule, so legitimate later reschedules remain distinct.
+- **Worker-safe lease model**:
+  - Future workers call one server-only claim primitive using `FOR UPDATE SKIP LOCKED`. A claim changes the event to `PROCESSING`, records worker/lease metadata, and increments the bounded attempt counter.
+  - A five-minute centralized lease permits crash recovery. Stale work below the maximum is claimable; a stale final-attempt lease is normalized to retained terminal `FAILED` state.
+  - Ownership-checked success marks `PROCESSED`; failure stores only a sanitized machine code and schedules capped exponential retry. Processed and terminal events are retained rather than deleted.
+- **Provider independence**:
+  - TASK 016A creates no cron process, delivery worker, provider SDK, channel selection, template, notification preference, or settings UI. Those layers consume the durable outbox in later TASK 016 phases.
+
+### 3.23 Notification Planning & Tenant Settings (TASK 016B)
+
+- **Separated configuration ownership**:
+  - `business_notification_settings` is a one-to-one tenant domain separate from `businesses`, with a master customer-notification switch and independent creation, reschedule, and cancellation preferences. A database provisioning trigger creates the compatibility-safe default row for every business, including non-UI provisioning paths.
+  - `business_notification_reminder_rules` retains at most three enabled whole-minute offsets per business. PostgreSQL constrains each offset to `5..43200` and makes the canonical minute value tenant-unique; the service enforces the V1 three-rule limit.
+  - `/dashboard/settings/notifications` is an OWNER/ADMIN-only settings route. The mutation derives its tenant from trusted membership, locks the settings row, uses `updated_at::text` as an opaque optimistic version, and writes switches, rule set, and reminder reconciliation atomically.
+- **Planning boundary**:
+  - `NotificationPlannerService` consumes only owned `PROCESSING` outbox claims. In one transaction it locks the source event, settings, and appointment, validates payload version/current schedule truth, reconciles plans, and marks the event `PROCESSED` through the existing ownership check.
+  - `notification_plans` represents intent only: `PENDING` or `CANCELLED`, a trusted schedule instant, and a deterministic global idempotency key. It has no delivery status, provider state, recipient snapshot, or raw capability.
+  - Created events make a current immediate intent plus future reminders only when the master/event preference allows it. Reschedules cancel obsolete reminders and pending creation/reschedule intents before scheduling current truth. Cancellations cancel all obsolete pending intent before optionally recording a cancellation intent.
+- **Current settings, crash-safe reconciliation**:
+  - Duplicate processing/recovered leases cannot duplicate plans because every immediate and reminder plan has a deterministic trusted key. Plan writes and source-outbox completion are atomic.
+  - Turning the master switch off cancels future pending plans without changing appointments. Turning it on rebuilds only future reminders for operational appointments; it never recreates historical confirmations, reschedules, or cancellations. Rule edits likewise reconcile only future `PENDING`/`CONFIRMED` appointments.
+  - A bounded server-only batch primitive composes the TASK 016A claim, planner, and sanitized retry path. It is callable by a future worker but starts no daemon and contacts no provider.
+
+### 3.24 Notification Delivery Worker & SMS Channel (TASK 016C)
+
+- **Provider Independence & Isolation**:
+  - The appointment, CRM, and notification planning domains remain strictly provider-independent. External SMS provider HTTP calls occur ONLY inside the delivery execution worker.
+  - Generic provider contract defined by `SmsProvider` interface (`sendSms(input): Promise<SendSmsResult>`), separating provider protocol details from the delivery domain.
+  - Concrete adapter: `NetgsmSmsProvider` implementing official Netgsm REST v2 JSON API (`https://api.netgsm.com.tr/sms/rest/v2/send`), with 10-digit Turkish phone normalization, Turkish alphanumeric header/originator semantics, Basic authentication, explicit error code mapping, and 10-second timeout.
+  - Test double: `TestSmsProvider` for deterministic contract, unit, and concurrency testing with recorded calls and forced outcomes.
+- **Delivery Domain (`notification_deliveries`)**:
+  - Independent delivery attempt domain separate from `notification_plans`. Plans remain intent ledgers (`PENDING` or `CANCELLED`); deliveries manage channel execution, leases, and attempt history.
+  - Status state machine: `PENDING` -> `PROCESSING` -> `SENT` (accepted by provider), `FAILED` (with retry or terminal), or `CANCELLED` (stale state / supersession).
+  - Recipient snapshot: Resolved authoritative phone number from the canonical customer profile at materialization time and persisted on the delivery row for audit, idempotency, and retries. Full customer profiles or private CRM notes are never copied.
+  - Channel enum: `notification_delivery_channel` (`SMS` in V1; architected for future expansion without modifying appointments, outbox, or planning).
+- **Transient Management Capability Issuance**:
+  - Raw appointment management capabilities are NEVER persisted in `notification_outbox`, `notification_plans`, `notification_deliveries`, provider audit logs, or test reports.
+  - Immediately before provider submission, a fresh capability is issued via `AppointmentAccessService.issue` in memory.
+  - Turkish transactional SMS templates render `APP_BASE_URL` + `/randevu#` + raw capability token.
+  - If provider dispatch fails, the issued token remains safely valid (hash-only in database); subsequent retry attempts generate a fresh transient capability.
+- **Worker Claiming & Concurrency**:
+  - Deliveries are claimed using PostgreSQL `FOR UPDATE SKIP LOCKED`, preventing competing workers from claiming identical delivery rows.
+  - Five-minute lease duration (`locked_at`, `locked_by`). Expired leases are safely recovered by subsequent worker sweeps.
+  - Exponential backoff retry strategy with a maximum of 8 attempts. Permanent errors (e.g. invalid phone `RECIPIENT_UNAVAILABLE`, Netgsm permanent error codes) fail immediately without useless retries.
+  - End-to-end processing pipeline: `processDueNotificationDeliveries` atomically materializes due plans, claims batches, validates pre-send state, and dispatches via the configured `SmsProvider`.

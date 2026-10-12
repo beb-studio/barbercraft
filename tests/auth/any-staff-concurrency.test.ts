@@ -15,8 +15,8 @@ const biz = uuid(111);
 const staffA = uuid(411);
 const staffB = uuid(412);
 const svcHaircut = uuid(511);
-const TARGET_MONDAY = "2026-10-12";
-const SLOT_TIME = "2026-10-12T07:00:00.000Z";
+const TARGET_MONDAY = "2030-10-14";
+const SLOT_TIME = "2030-10-14T07:00:00.000Z";
 
 before(async () => {
   pgServer = await startDatabase();
@@ -109,7 +109,7 @@ after(async () => {
 describe("TASK 009A.3A: Transactional Any Staff Concurrency Hardening", () => {
   it("CRITICAL CAPACITY TEST 1: Two eligible/free staff, two concurrent requests", async () => {
     // Both staff A and B are free at 09:00 local (06:00 UTC)
-    const startAt = "2026-10-12T06:00:00.000Z";
+    const startAt = "2030-10-14T06:00:00.000Z";
     
     // We fire two concurrent Any Staff requests
     const res = await Promise.all([
@@ -150,14 +150,14 @@ describe("TASK 009A.3A: Transactional Any Staff Concurrency Hardening", () => {
   it("CRITICAL CAPACITY TEST 2: Only one eligible/free staff left, two concurrent requests", async () => {
     // Staff A and B were booked at 06:00 UTC. Now let's try 06:30 UTC.
     // Wait, let's manually block Staff A at 06:30 UTC so only B is free.
-    const startAt = "2026-10-12T06:30:00.000Z";
+    const startAt = "2030-10-14T06:30:00.000Z";
     
     await db.execute(`
       INSERT INTO customers (id, business_id, first_name, phone, normalized_phone) VALUES
       ('${uuid(10)}', '${biz}', 'Blocker', '+905559000000', '905559000000') ON CONFLICT DO NOTHING;
 
       INSERT INTO appointments (id, business_id, customer_id, staff_id, service_id, start_time, end_time, status, service_name_snapshot, service_duration_snapshot, service_price_snapshot) VALUES
-      (gen_random_uuid(), '${biz}', '${uuid(10)}', '${staffA}', '${svcHaircut}', '2026-10-12T06:30:00.000Z', '2026-10-12T07:00:00.000Z', 'CONFIRMED', 'Saç', 30, '200');
+      (gen_random_uuid(), '${biz}', '${uuid(10)}', '${staffA}', '${svcHaircut}', '2030-10-14T06:30:00.000Z', '2030-10-14T07:00:00.000Z', 'CONFIRMED', 'Saç', 30, '200');
     `);
 
     const res = await Promise.all([
@@ -188,7 +188,7 @@ describe("TASK 009A.3A: Transactional Any Staff Concurrency Hardening", () => {
   });
 
   it("CRITICAL CAPACITY TEST 3: Two eligible/free staff, three concurrent requests", async () => {
-    const startAt = "2026-10-12T07:00:00.000Z"; // 10:00 local
+    const startAt = "2030-10-14T07:00:00.000Z"; // 10:00 local
     
     const res = await Promise.all([
       createPublicAppointmentAction({
@@ -227,7 +227,7 @@ describe("TASK 009A.3A: Transactional Any Staff Concurrency Hardening", () => {
   it("DEADLOCK TEST: Run several concurrent transactions", async () => {
     // We will spam 10 concurrent requests for 07:30 UTC
     // Only 2 should succeed, but what matters is it doesn't crash or hang
-    const startAt = "2026-10-12T07:30:00.000Z"; // 10:30 local
+    const startAt = "2030-10-14T07:30:00.000Z"; // 10:30 local
 
     const reqs = Array.from({ length: 10 }).map((_, i) => 
       createPublicAppointmentAction({
@@ -260,11 +260,11 @@ describe("TASK 009A.3A: Transactional Any Staff Concurrency Hardening", () => {
       ('${uuid(11)}', '${biz}', 'Load', '+905558880000', '905558880000') ON CONFLICT DO NOTHING;
 
       INSERT INTO appointments (id, business_id, customer_id, staff_id, service_id, start_time, end_time, status, service_name_snapshot, service_duration_snapshot, service_price_snapshot) VALUES
-      (gen_random_uuid(), '${biz}', '${uuid(11)}', '${staffB}', '${svcHaircut}', '2026-10-13T06:00:00.000Z', '2026-10-13T06:30:00.000Z', 'CONFIRMED', 'Saç', 30, '200');
+      (gen_random_uuid(), '${biz}', '${uuid(11)}', '${staffB}', '${svcHaircut}', '2030-10-15T06:00:00.000Z', '2030-10-15T06:30:00.000Z', 'CONFIRMED', 'Saç', 30, '200');
     `);
 
     // Now fire an Any Staff request for Tuesday 06:30 UTC
-    const startAt = "2026-10-13T06:30:00.000Z";
+    const startAt = "2030-10-15T06:30:00.000Z";
     const res = await createPublicAppointmentAction({
       slug: "concurrency-barber",
       serviceId: svcHaircut,
@@ -278,7 +278,7 @@ describe("TASK 009A.3A: Transactional Any Staff Concurrency Hardening", () => {
     // Should be assigned to staffA, because staffB has 1 workload on Tuesday and staffA has 0.
     const appts = await db.execute(`
       SELECT staff_id FROM appointments 
-      WHERE start_time = '2026-10-13T06:30:00.000Z' AND business_id = '${biz}'
+      WHERE start_time = '2030-10-15T06:30:00.000Z' AND business_id = '${biz}'
     `);
     assert.equal(appts.rows[0].staff_id, staffA);
   });
@@ -286,13 +286,13 @@ describe("TASK 009A.3A: Transactional Any Staff Concurrency Hardening", () => {
   it("CANCELLED EXCLUSION TEST: Cancelled appointments do not count towards workload", async () => {
     // We cancel the earlier appointment for staffB
     await db.execute(`
-      UPDATE appointments SET status = 'CANCELLED' WHERE staff_id = '${staffB}' AND start_time = '2026-10-13T06:00:00.000Z'
+      UPDATE appointments SET status = 'CANCELLED' WHERE staff_id = '${staffB}' AND start_time = '2030-10-15T06:00:00.000Z'
     `);
     
     // Now both have 0 workload (actually staffA has 1 workload at 06:30 UTC because of the previous test)
     // Wait, staffA has 1 workload at 06:30 UTC. staffB has 0.
     // So if we book at 07:00 UTC, it should go to staffB!
-    const startAt = "2026-10-13T07:00:00.000Z";
+    const startAt = "2030-10-15T07:00:00.000Z";
     const res = await createPublicAppointmentAction({
       slug: "concurrency-barber",
       serviceId: svcHaircut,
@@ -306,14 +306,14 @@ describe("TASK 009A.3A: Transactional Any Staff Concurrency Hardening", () => {
     // Should be assigned to staffB, because staffA has 1 workload on Tuesday and staffB has 0 (cancelled doesn't count).
     const appts = await db.execute(`
       SELECT staff_id FROM appointments 
-      WHERE start_time = '2026-10-13T07:00:00.000Z' AND business_id = '${biz}'
+      WHERE start_time = '2030-10-15T07:00:00.000Z' AND business_id = '${biz}'
     `);
     assert.equal(appts.rows[0].staff_id, staffB);
   });
 
   it("ANY STAFF vs TIME BLOCK TEST: Rejects if staff gets blocked concurrently", async () => {
     // Both staff A and B work on Wednesday. We will block Staff B entirely, and dynamically block Staff A via time block.
-    // 2026-10-14 is Wednesday
+    // 2030-10-16 is Wednesday
     const { createStaffTimeBlockService } = await import("../../src/services/time-blocks.service");
 
     await db.execute(`
@@ -326,12 +326,12 @@ describe("TASK 009A.3A: Transactional Any Staff Concurrency Hardening", () => {
       ('${uuid(12)}', '${biz}', 'BlockerB', '+905558880001', '905558880001') ON CONFLICT DO NOTHING;
 
       INSERT INTO appointments (id, business_id, customer_id, staff_id, service_id, start_time, end_time, status, service_name_snapshot, service_duration_snapshot, service_price_snapshot) VALUES
-      (gen_random_uuid(), '${biz}', '${uuid(12)}', '${staffB}', '${svcHaircut}', '2026-10-14T06:00:00.000Z', '2026-10-14T06:30:00.000Z', 'CONFIRMED', 'Saç', 30, '200');
+      (gen_random_uuid(), '${biz}', '${uuid(12)}', '${staffB}', '${svcHaircut}', '2030-10-16T06:00:00.000Z', '2030-10-16T06:30:00.000Z', 'CONFIRMED', 'Saç', 30, '200');
     `);
 
     // So only staff A is free at 06:00 UTC.
     // We concurrently create a time block for staff A AND try to book Any Staff.
-    const startAt = "2026-10-14T06:00:00.000Z";
+    const startAt = "2030-10-16T06:00:00.000Z";
     
     const req1 = createPublicAppointmentAction({
       slug: "concurrency-barber",
@@ -344,9 +344,9 @@ describe("TASK 009A.3A: Transactional Any Staff Concurrency Hardening", () => {
 
     const req2 = createStaffTimeBlockService(biz, staffA, {
       blockType: "TIME_OFF",
-      startDate: "2026-10-14",
+      startDate: "2030-10-16",
       startTime: "09:00",
-      endDate: "2026-10-14",
+      endDate: "2030-10-16",
       endTime: "09:30",
     }, "OWNER");
 
@@ -373,11 +373,11 @@ describe("TASK 009A.3A: Transactional Any Staff Concurrency Hardening", () => {
 
   it("CUSTOMER ROLLBACK TEST: Rolls back customer creation if slot is unavailable", async () => {
     // Wednesday 06:30 UTC. Both staff are free. Let's block them both.
-    const startAt = "2026-10-14T06:30:00.000Z";
+    const startAt = "2030-10-16T06:30:00.000Z";
     await db.execute(`
       INSERT INTO appointments (id, business_id, customer_id, staff_id, service_id, start_time, end_time, status, service_name_snapshot, service_duration_snapshot, service_price_snapshot) VALUES
-      (gen_random_uuid(), '${biz}', '${uuid(12)}', '${staffA}', '${svcHaircut}', '${startAt}', '2026-10-14T07:00:00.000Z', 'CONFIRMED', 'Saç', 30, '200'),
-      (gen_random_uuid(), '${biz}', '${uuid(12)}', '${staffB}', '${svcHaircut}', '${startAt}', '2026-10-14T07:00:00.000Z', 'CONFIRMED', 'Saç', 30, '200');
+      (gen_random_uuid(), '${biz}', '${uuid(12)}', '${staffA}', '${svcHaircut}', '${startAt}', '2030-10-16T07:00:00.000Z', 'CONFIRMED', 'Saç', 30, '200'),
+      (gen_random_uuid(), '${biz}', '${uuid(12)}', '${staffB}', '${svcHaircut}', '${startAt}', '2030-10-16T07:00:00.000Z', 'CONFIRMED', 'Saç', 30, '200');
     `);
 
     const uniquePhone = "05559998811";
@@ -399,7 +399,7 @@ describe("TASK 009A.3A: Transactional Any Staff Concurrency Hardening", () => {
 
   it("SUCCESS DTO PRIVACY TEST: Any Staff success does not leak DB IDs", async () => {
     // Wednesday 07:00 UTC. Both are free.
-    const startAt = "2026-10-14T07:00:00.000Z";
+    const startAt = "2030-10-16T07:00:00.000Z";
     const res = await createPublicAppointmentAction({
       slug: "concurrency-barber",
       serviceId: svcHaircut,

@@ -7,6 +7,7 @@ import { getDay } from "date-fns";
 import { sql } from "drizzle-orm";
 import { resolveCanonicalCustomer } from "@/services/customer-resolution.service";
 import { AppointmentAccessService } from "@/services/appointment-access.service";
+import { NotificationOutboxService } from "@/services/notification-outbox.service";
 import {
   canTransitionAppointmentStatus,
   isOperationalAppointmentStatus,
@@ -166,6 +167,14 @@ export const AppointmentService = {
         notes: input.notes || input.customer?.notes || null,
       });
 
+      await NotificationOutboxService.emitAppointmentCreated(tx, {
+        businessId: appointment.businessId,
+        appointmentId: appointment.id,
+        startAt: appointment.startTime,
+        endAt: appointment.endTime,
+        status: appointment.status,
+      });
+
       const managementAccess = input.issueManagementAccess
         ? await AppointmentAccessService.issue(
             { businessId: input.businessId, appointmentId: appointment.id },
@@ -268,6 +277,14 @@ export const AppointmentService = {
         notes: input.notes || input.customer?.notes || null,
       });
 
+      await NotificationOutboxService.emitAppointmentCreated(tx, {
+        businessId: appointment.businessId,
+        appointmentId: appointment.id,
+        startAt: appointment.startTime,
+        endAt: appointment.endTime,
+        status: appointment.status,
+      });
+
       const managementAccess = input.issueManagementAccess
         ? await AppointmentAccessService.issue(
             { businessId: input.businessId, appointmentId: appointment.id },
@@ -325,7 +342,7 @@ export const AppointmentService = {
 
       // 3. Lock appointment and re-read
       const appRes = await tx.execute(
-        sql`SELECT id, status, start_time FROM appointments WHERE id = ${appointmentId} AND business_id = ${businessId} FOR UPDATE`
+        sql`SELECT id, status, start_time, end_time FROM appointments WHERE id = ${appointmentId} AND business_id = ${businessId} FOR UPDATE`
       );
       const app = appRes.rows[0];
 
@@ -354,6 +371,19 @@ export const AppointmentService = {
       await tx.execute(
         sql`UPDATE appointments SET status = ${targetStatus}, updated_at = NOW() WHERE id = ${appointmentId}`
       );
+
+      if (targetStatus === "CANCELLED") {
+        const endTime = app.end_time instanceof Date
+          ? app.end_time
+          : new Date(app.end_time as string);
+        await NotificationOutboxService.emitAppointmentCancelled(tx, {
+          businessId,
+          appointmentId,
+          startAt: startTime,
+          endAt: endTime,
+          previousStatus: currentStatus,
+        });
+      }
 
       return { success: true };
     });
@@ -425,7 +455,11 @@ export const AppointmentService = {
 
       // 3. Lock appointment for update
       const appRes = await tx.execute(
-        sql`SELECT id, status, start_time, updated_at, service_id, service_duration_snapshot FROM appointments WHERE id = ${input.appointmentId} AND business_id = ${input.businessId} FOR UPDATE`
+        sql`SELECT id, status, start_time, end_time, updated_at,
+          updated_at::text AS event_version, service_id, service_duration_snapshot
+          FROM appointments
+          WHERE id = ${input.appointmentId} AND business_id = ${input.businessId}
+          FOR UPDATE`
       );
       const app = appRes.rows[0];
       if (!app) {
@@ -466,6 +500,9 @@ export const AppointmentService = {
       if (isNaN(newRequestedStartDate.getTime())) {
         throw new Error("Invalid start time");
       }
+      if (newRequestedStartDate.getTime() === lockedStartTime.getTime()) {
+        return { success: true, reason: "NO_CHANGE" as const };
+      }
 
       const { dateStr: localDate } = formatInstantInBusinessTimezone(newRequestedStartDate, inputs.business.timezone);
 
@@ -498,6 +535,20 @@ export const AppointmentService = {
       await tx.execute(
         sql`UPDATE appointments SET start_time = ${newRequestedStartDate}, end_time = ${newEndAt}, updated_at = NOW() WHERE id = ${input.appointmentId}`
       );
+
+      const oldEndTime = app.end_time instanceof Date
+        ? app.end_time
+        : new Date(app.end_time as string);
+      await NotificationOutboxService.emitAppointmentRescheduled(tx, {
+        businessId: input.businessId,
+        appointmentId: input.appointmentId,
+        previousVersion: app.event_version as string,
+        oldStartAt: lockedStartTime,
+        oldEndAt: oldEndTime,
+        newStartAt: newRequestedStartDate,
+        newEndAt,
+        status: app.status as AppointmentStatus,
+      });
 
       await AppointmentAccessService.refreshExpirationAfterReschedule(tx, {
         businessId: input.businessId,

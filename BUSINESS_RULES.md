@@ -499,3 +499,55 @@
 10. Public management read access remains available when a notice window closes. The UI may explain that online cancellation or rescheduling has ended without exposing internal policy codes.
 11. Manual/internal booking and authenticated internal rescheduling remain outside these public-customer policy restrictions.
 12. Onboarding remains unchanged, and TASK 015 introduces no notification, customer-account, billing, loyalty, or marketing behavior.
+
+---
+
+## 21. Appointment Notification Outbox Rules (TASK 016A)
+
+1. A committed appointment creation, actual date/time reschedule, or transition into `CANCELLED` must have exactly one matching durable outbox event committed in the same PostgreSQL transaction.
+2. If event insertion fails, the appointment mutation rolls back. If the appointment mutation fails or is a no-op, no event is inserted. No external delivery provider may participate in the appointment transaction.
+3. The only V1 event types are `APPOINTMENT_CREATED`, `APPOINTMENT_RESCHEDULED`, and `APPOINTMENT_CANCELLED`. `COMPLETED` and `NO_SHOW` do not create notification events.
+4. Payload version 1 contains only historically necessary schedule/status facts. It must not contain a raw management token, capability URL, appointment/customer notes, CRM history, merge lineage, auth/session data, provider credentials, or arbitrary entity dumps.
+5. Recipient phone/email/channel data is not snapshotted in this provider-neutral event. A later authorized delivery planner resolves a recipient under the notification rules current at planning time.
+6. Creation and cancellation are lifetime-idempotent per appointment. Reschedule idempotency includes trusted locked prior-version and old/new schedule facts so repeated stale/no-op submissions cannot duplicate an event while separate legitimate schedule changes remain distinct.
+7. Outbox rows are tenant-bound through `(business_id, appointment_id)`. Cross-tenant event relationships are rejected by PostgreSQL.
+8. Worker claims use server time, bounded batch sizes, `FOR UPDATE SKIP LOCKED`, exclusive worker ownership, and a five-minute lease. Two workers cannot own one active event.
+9. Claims increment `attempt_count`. Failed work stores only a sanitized machine-safe code and uses centralized capped exponential backoff. Eight attempts is terminal; terminal and processed rows are retained.
+10. An expired non-terminal lease is automatically reclaimable. An expired final-attempt lease becomes terminal `FAILED` rather than remaining permanently `PROCESSING` or receiving a ninth attempt.
+11. TASK 016A does not send SMS, email, or WhatsApp messages and adds no cron, template editor, preferences, notification settings UI, or provider secrets.
+
+---
+
+## 22. Notification Planning & Settings Rules (TASK 016B)
+
+1. Each business has exactly one notification-settings record. The compatibility-safe defaults are customer notifications disabled, while creation/reschedule/cancellation preferences are enabled beneath that master switch. Existing tenants receive no reminder rules and no historical plans.
+2. Active tenant OWNER and ADMIN memberships may read/update notification settings; STAFF, unauthenticated visitors, and platform-only administrators may not. Tenant identity comes from trusted membership, never a browser business identifier.
+3. A business can retain no more than three reminder offsets. An offset is a unique whole positive canonical minute value from five minutes through thirty days (`43200`); alternate presentations such as 24 hours and one day are the same duplicate.
+4. A notification plan is provider-neutral intent, not a delivery attempt. It may be `PENDING` or `CANCELLED`; sent/delivered/bounced state and channels belong to a later delivery phase.
+5. Plans never persist phone, email, WhatsApp identity, customer/CRM snapshots, raw management capabilities or URLs, provider credentials, or notes. Recipient and any freshly issued capability are resolved transiently by a future delivery layer.
+6. A claimed outbox event is planned under source-event ownership. Plan changes and source event completion commit atomically, and trusted deterministic keys make crash recovery/reprocessing idempotent.
+7. Master OFF consumes events without new plans and cancels future pending plans on a settings save. Master ON creates only current/future allowed plans and rebuilds only future reminders for operational (`PENDING`/`CONFIRMED`) appointments; it never manufactures historical immediate notifications.
+8. A reschedule cancels obsolete pending created/rescheduled intent and old-schedule reminders before making current reschedule/reminder intent. A cancellation removes pending created/rescheduled/reminder intent and may create one cancellation intent when enabled. Repeated processing cannot duplicate any logical plan.
+9. Settings switches, canonical reminder-rule replacement, and future-reminder reconciliation are one transaction guarded by optimistic concurrency. A stale operator update changes nothing.
+10. TASK 016B contacts no provider, runs no cron/daemon, and implements no marketing, campaigns, customer accounts, or notification preferences.
+
+---
+
+## 23. Notification Delivery Worker & SMS Delivery Rules (TASK 016C)
+
+1. The appointment lifecycle and notification planning domains remain strictly provider-independent. Provider API calls take place strictly within the notification delivery worker.
+2. The initial notification delivery channel is SMS only. Email and WhatsApp are not implemented in V1.
+3. Deliveries are modeled in a dedicated `notification_deliveries` table. `notification_plans` records planning intent (`PENDING` or `CANCELLED`), while `notification_deliveries` records channel execution attempts and provider dispatch states.
+4. Concrete delivery materialization converts a due `PENDING` plan (`scheduled_for <= now()`) into a single idempotent delivery record (`(plan_id, channel)` unique).
+5. Before dispatching, the delivery worker revalidates current appointment and plan state:
+   - Reminder notifications: The appointment must be in `PENDING` or `CONFIRMED` status and scheduled in the future (`startTime > now`). If cancelled or past, the delivery is skipped/cancelled.
+   - Rescheduled notifications: The appointment must be in `PENDING` or `CONFIRMED` status.
+   - Cancelled notifications: The appointment must be in `CANCELLED` status.
+   - Plan cancellation check: If the source plan was cancelled in the interim, delivery is marked `CANCELLED`.
+6. Recipient identity is resolved from the current canonical customer profile of the appointment. If the appointment references a merged alias customer, canonical CRM identity resolution resolves the primary profile phone.
+7. Phone numbers are normalized and validated via the project standard Turkish phone normalization helper (`+905XXXXXXXXX`). If no deliverable phone number exists, the delivery fails permanently with sanitized error code `RECIPIENT_UNAVAILABLE` without retrying. Phone numbers are never exposed in error logs.
+8. Transactional SMS messages use application-owned Turkish templates (`APPOINTMENT_CREATED`, `APPOINTMENT_RESCHEDULED`, `APPOINTMENT_CANCELLED`, `APPOINTMENT_REMINDER`). Templates include business name, service name, and business-local date/time, and strictly exclude CRM notes, internal notes, merge lineage, and database IDs.
+9. Appointment management capabilities are issued freshly in process memory immediately before provider submission (`AppointmentAccessService.issue`). Raw tokens and full `/randevu#<token>` URLs are NEVER persisted in `notification_outbox`, `notification_plans`, `notification_deliveries`, provider logs, or database columns.
+10. If provider submission fails after capability issuance, the issued capability remains valid in the database (hash-only); retrying worker execution will generate a fresh transient capability.
+11. Delivery rows are claimed via `FOR UPDATE SKIP LOCKED` with 5-minute leases. Two workers cannot own the same active delivery. Expired leases are safely recovered by subsequent worker sweeps.
+12. Transient failures (e.g. Netgsm 80/85, network timeouts, HTTP 500) trigger capped exponential backoff with a maximum of 8 attempts. Permanent errors fail immediately. Successful provider acceptance sets status to `SENT` with provider message ID (`jobid`).

@@ -14,6 +14,7 @@ import {
   X,
   User,
   Settings,
+  BellRing,
 } from "lucide-react";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { Badge } from "@/components/ui/badge";
@@ -95,8 +96,15 @@ export function DashboardShell({
           },
           {
             href: "/dashboard/settings/booking",
-            label: "Ayarlar",
+            label: "Randevu Kuralları",
             icon: Settings,
+            exact: false,
+            showInBottomNav: false,
+          },
+          {
+            href: "/dashboard/settings/notifications",
+            label: "Bildirimler",
+            icon: BellRing,
             exact: false,
             showInBottomNav: false,
           },

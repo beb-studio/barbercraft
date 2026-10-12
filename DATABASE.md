@@ -232,6 +232,81 @@ Appointment-scoped bearer capabilities for accountless public management access.
 - Public rescheduling policy: token lookup remains hash-only and tenant-bound. Successful rescheduling creates no replacement token, revokes no token, and changes no token metadata except the appointment-wide expiry refresh.
 - Migration policy: migration `0014_appointment_access_tokens.sql` creates no token rows and does not modify appointments or customers.
 
+### 3.13 `notification_outbox`
+
+Durable, provider-neutral appointment notification intents.
+
+- `id` (uuid, PK, default `gen_random_uuid()`)
+- `business_id`, `appointment_id` (uuid, NOT NULL)
+- `event_type` (`APPOINTMENT_CREATED`, `APPOINTMENT_RESCHEDULED`, `APPOINTMENT_CANCELLED`)
+- `payload_version` (integer, NOT NULL, default 1) and `payload` (jsonb object, NOT NULL)
+- `idempotency_key` (text, globally UNIQUE, 64-character deterministic SHA-256 hex)
+- `status` (`PENDING`, `PROCESSING`, `PROCESSED`, `FAILED`; default `PENDING`)
+- `available_at`, `locked_at`, `processed_at`, `created_at`, `updated_at` (timestamptz)
+- `attempt_count` (integer, default 0, constrained to `0..8`)
+- `locked_by` (text, nullable) and `last_error_code` (sanitized text, nullable, at most 64 characters)
+- Composite FK `(business_id, appointment_id) -> appointments(business_id, id)` ON DELETE RESTRICT.
+- State checks require lock owner/time exactly for `PROCESSING` and `processed_at` exactly for `PROCESSED`. Payload must be a JSON object and payload version must be positive.
+- Indexes:
+  - unique idempotency lookup supplied by `idempotency_key`
+  - partial claim index on `(available_at, created_at, id)` for `PENDING`/`FAILED`
+  - partial stale-lease index on `locked_at` for `PROCESSING`
+  - appointment event history index on `(business_id, appointment_id, created_at)`
+- Claiming uses `FOR UPDATE SKIP LOCKED`; `available_at` and a centralized five-minute lease use server-authoritative instants. Attempt-based retry starts at one minute, doubles to a six-hour cap, and stops after eight claims.
+- Events and appointments commit atomically. Migration `0016_notification_outbox.sql` creates no retroactive events and modifies no appointment, token, customer, or CRM history.
+- Rows are retained after processing or terminal failure. TASK 016A defines no physical retention cleanup.
+
+### 3.14 Notification planning tables
+
+`business_notification_settings` is a one-to-one extension of `businesses`, keyed by `business_id` with a restrictive foreign key. It stores `customer_notifications_enabled` (default `false`) plus `appointment_created_enabled`, `appointment_rescheduled_enabled`, and `appointment_cancelled_enabled` (each default `true`), with created/updated timestamps. Migration `0017_notification_planning.sql` backfills one safe settings row for every existing business and an `AFTER INSERT` trigger provisions future businesses.
+
+`business_notification_reminder_rules` stores `id`, `business_id`, `minutes_before`, `enabled`, and timestamps. It has `UNIQUE (business_id, minutes_before)` and database checks requiring `minutes_before` from `5` through `43200`; application policy allows no more than three rules per business. Minutes are the sole canonical unit.
+
+`notification_plans` is a provider-neutral intent ledger:
+
+- `id` (uuid, PK), `business_id`, `appointment_id`, nullable `source_outbox_id`
+- `type` (`APPOINTMENT_CREATED`, `APPOINTMENT_RESCHEDULED`, `APPOINTMENT_CANCELLED`, `APPOINTMENT_REMINDER`)
+- `scheduled_for`, nullable `reminder_offset_minutes`, global unique `idempotency_key`
+- `status` (`PENDING`, `CANCELLED`), nullable `cancelled_at`, timestamps
+- Composite tenant foreign keys bind both appointment and source outbox row to the same business. The outbox additionally has `UNIQUE (business_id, id)` exclusively to support that tenant-safe reference.
+- Checks enforce the immediate/reminder source and offset shape. Worker-facing indexes cover due pending plans, appointment reconciliation, and future per-business reminder reconciliation.
+
+Neither planning table stores recipient/contact data, raw capability tokens or URLs, provider credentials, CRM/internal notes, or delivery outcomes. Migration `0017_notification_planning.sql` creates zero historical plans and does not modify appointments, events, customers, or tokens.
+
+### 3.15 `notification_deliveries`
+
+Execution attempt ledger for channel-specific delivery attempts.
+
+- `id` (uuid, PK, default `gen_random_uuid()`)
+- `business_id` (uuid, NOT NULL)
+- `plan_id` (uuid, NOT NULL)
+- `channel` (`SMS`; enum `notification_delivery_channel`)
+- `status` (`PENDING`, `PROCESSING`, `SENT`, `FAILED`, `CANCELLED`; enum `notification_delivery_status`)
+- `recipient` (text, NOT NULL; normalized E.164 phone snapshot e.g. `+905XXXXXXXXX`)
+- `provider` (text, NOT NULL; e.g. `NETGSM`)
+- `provider_message_id` (text, nullable; provider message identifier e.g. `jobid`)
+- `attempt_count` (integer, NOT NULL, default 0, check `attempt_count >= 0 AND attempt_count <= 8`)
+- `available_at` (timestamptz, NOT NULL, default `now()`)
+- `locked_at` (timestamptz, nullable)
+- `locked_by` (text, nullable)
+- `sent_at` (timestamptz, nullable)
+- `failed_at` (timestamptz, nullable)
+- `last_error_code` (text, nullable, max 64 chars)
+- `created_at` (timestamptz, NOT NULL, default `now()`)
+- `updated_at` (timestamptz, NOT NULL, default `now()`)
+- Constraints:
+  - UNIQUE `(plan_id, channel)`: ensures exactly one delivery row per plan and channel.
+  - Composite FK: `(business_id, plan_id) -> notification_plans(business_id, id)` ON DELETE CASCADE.
+  - Composite FK: `(business_id) -> businesses(id)` ON DELETE CASCADE.
+  - Check `check_nd_processing_lock`: `(status = 'PROCESSING' AND locked_at IS NOT NULL AND locked_by IS NOT NULL) OR (status != 'PROCESSING')`.
+  - Check `check_nd_sent_fields`: `(status = 'SENT' AND sent_at IS NOT NULL) OR (status != 'SENT')`.
+  - Check `check_nd_failed_fields`: `(status = 'FAILED' AND failed_at IS NOT NULL) OR (status != 'FAILED')`.
+- Indexes:
+  - Partial claim index: `(available_at, created_at, id)` WHERE `status IN ('PENDING', 'FAILED')`.
+  - Partial stale-lease index: `(locked_at)` WHERE `status = 'PROCESSING'`.
+  - Business history index: `(business_id, created_at)`.
+- Security & Privacy: Stores strictly the normalized recipient phone number needed for dispatch and audit. NEVER stores raw capabilities, full management URLs, customer profile dumps, or internal CRM notes.
+
 ---
 
 ## 4. Database Triggers & Functions
@@ -241,3 +316,5 @@ Appointment-scoped bearer capabilities for accountless public management access.
 4. `is_valid_timezone(tz text)`: Helper function that tests whether a timezone string is valid in PostgreSQL.
 5. `customer_phone_comparison_key(text)` and `sync_customer_phone_comparison_key()`: Preserve application-equivalent comparison-key semantics during backfill and direct server-side writes.
 6. `enforce_customer_merge_one_hop()`: Deferred constraint trigger that rejects aliases targeting aliases and canonical rows that still have inbound aliases when they become aliases.
+7. `set_notification_outbox_updated_at`: Applies the shared `set_updated_at()` function to every outbox state/lease mutation.
+8. `set_notification_deliveries_updated_at`: Applies the shared `set_updated_at()` function to every delivery state/lease mutation.
