@@ -188,7 +188,8 @@ describe("Any Staff Availability (Fark Etmez)", () => {
     const res = await PublicBookingService.getPublicAnyStaffAvailability({
       slug: 'any-staff-studio',
       serviceId: svc30,
-      localDate: TARGET_MONDAY
+      localDate: TARGET_MONDAY,
+      referenceNow: REF_NOW_MONDAY
     });
 
     assert.equal(res.success, true);

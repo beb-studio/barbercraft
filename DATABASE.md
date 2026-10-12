@@ -273,6 +273,40 @@ Durable, provider-neutral appointment notification intents.
 
 Neither planning table stores recipient/contact data, raw capability tokens or URLs, provider credentials, CRM/internal notes, or delivery outcomes. Migration `0017_notification_planning.sql` creates zero historical plans and does not modify appointments, events, customers, or tokens.
 
+### 3.15 `notification_deliveries`
+
+Execution attempt ledger for channel-specific delivery attempts.
+
+- `id` (uuid, PK, default `gen_random_uuid()`)
+- `business_id` (uuid, NOT NULL)
+- `plan_id` (uuid, NOT NULL)
+- `channel` (`SMS`; enum `notification_delivery_channel`)
+- `status` (`PENDING`, `PROCESSING`, `SENT`, `FAILED`, `CANCELLED`; enum `notification_delivery_status`)
+- `recipient` (text, NOT NULL; normalized E.164 phone snapshot e.g. `+905XXXXXXXXX`)
+- `provider` (text, NOT NULL; e.g. `NETGSM`)
+- `provider_message_id` (text, nullable; provider message identifier e.g. `jobid`)
+- `attempt_count` (integer, NOT NULL, default 0, check `attempt_count >= 0 AND attempt_count <= 8`)
+- `available_at` (timestamptz, NOT NULL, default `now()`)
+- `locked_at` (timestamptz, nullable)
+- `locked_by` (text, nullable)
+- `sent_at` (timestamptz, nullable)
+- `failed_at` (timestamptz, nullable)
+- `last_error_code` (text, nullable, max 64 chars)
+- `created_at` (timestamptz, NOT NULL, default `now()`)
+- `updated_at` (timestamptz, NOT NULL, default `now()`)
+- Constraints:
+  - UNIQUE `(plan_id, channel)`: ensures exactly one delivery row per plan and channel.
+  - Composite FK: `(business_id, plan_id) -> notification_plans(business_id, id)` ON DELETE CASCADE.
+  - Composite FK: `(business_id) -> businesses(id)` ON DELETE CASCADE.
+  - Check `check_nd_processing_lock`: `(status = 'PROCESSING' AND locked_at IS NOT NULL AND locked_by IS NOT NULL) OR (status != 'PROCESSING')`.
+  - Check `check_nd_sent_fields`: `(status = 'SENT' AND sent_at IS NOT NULL) OR (status != 'SENT')`.
+  - Check `check_nd_failed_fields`: `(status = 'FAILED' AND failed_at IS NOT NULL) OR (status != 'FAILED')`.
+- Indexes:
+  - Partial claim index: `(available_at, created_at, id)` WHERE `status IN ('PENDING', 'FAILED')`.
+  - Partial stale-lease index: `(locked_at)` WHERE `status = 'PROCESSING'`.
+  - Business history index: `(business_id, created_at)`.
+- Security & Privacy: Stores strictly the normalized recipient phone number needed for dispatch and audit. NEVER stores raw capabilities, full management URLs, customer profile dumps, or internal CRM notes.
+
 ---
 
 ## 4. Database Triggers & Functions
@@ -283,3 +317,4 @@ Neither planning table stores recipient/contact data, raw capability tokens or U
 5. `customer_phone_comparison_key(text)` and `sync_customer_phone_comparison_key()`: Preserve application-equivalent comparison-key semantics during backfill and direct server-side writes.
 6. `enforce_customer_merge_one_hop()`: Deferred constraint trigger that rejects aliases targeting aliases and canonical rows that still have inbound aliases when they become aliases.
 7. `set_notification_outbox_updated_at`: Applies the shared `set_updated_at()` function to every outbox state/lease mutation.
+8. `set_notification_deliveries_updated_at`: Applies the shared `set_updated_at()` function to every delivery state/lease mutation.

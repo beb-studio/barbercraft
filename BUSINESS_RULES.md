@@ -530,3 +530,24 @@
 8. A reschedule cancels obsolete pending created/rescheduled intent and old-schedule reminders before making current reschedule/reminder intent. A cancellation removes pending created/rescheduled/reminder intent and may create one cancellation intent when enabled. Repeated processing cannot duplicate any logical plan.
 9. Settings switches, canonical reminder-rule replacement, and future-reminder reconciliation are one transaction guarded by optimistic concurrency. A stale operator update changes nothing.
 10. TASK 016B contacts no provider, runs no cron/daemon, and implements no marketing, campaigns, customer accounts, or notification preferences.
+
+---
+
+## 23. Notification Delivery Worker & SMS Delivery Rules (TASK 016C)
+
+1. The appointment lifecycle and notification planning domains remain strictly provider-independent. Provider API calls take place strictly within the notification delivery worker.
+2. The initial notification delivery channel is SMS only. Email and WhatsApp are not implemented in V1.
+3. Deliveries are modeled in a dedicated `notification_deliveries` table. `notification_plans` records planning intent (`PENDING` or `CANCELLED`), while `notification_deliveries` records channel execution attempts and provider dispatch states.
+4. Concrete delivery materialization converts a due `PENDING` plan (`scheduled_for <= now()`) into a single idempotent delivery record (`(plan_id, channel)` unique).
+5. Before dispatching, the delivery worker revalidates current appointment and plan state:
+   - Reminder notifications: The appointment must be in `PENDING` or `CONFIRMED` status and scheduled in the future (`startTime > now`). If cancelled or past, the delivery is skipped/cancelled.
+   - Rescheduled notifications: The appointment must be in `PENDING` or `CONFIRMED` status.
+   - Cancelled notifications: The appointment must be in `CANCELLED` status.
+   - Plan cancellation check: If the source plan was cancelled in the interim, delivery is marked `CANCELLED`.
+6. Recipient identity is resolved from the current canonical customer profile of the appointment. If the appointment references a merged alias customer, canonical CRM identity resolution resolves the primary profile phone.
+7. Phone numbers are normalized and validated via the project standard Turkish phone normalization helper (`+905XXXXXXXXX`). If no deliverable phone number exists, the delivery fails permanently with sanitized error code `RECIPIENT_UNAVAILABLE` without retrying. Phone numbers are never exposed in error logs.
+8. Transactional SMS messages use application-owned Turkish templates (`APPOINTMENT_CREATED`, `APPOINTMENT_RESCHEDULED`, `APPOINTMENT_CANCELLED`, `APPOINTMENT_REMINDER`). Templates include business name, service name, and business-local date/time, and strictly exclude CRM notes, internal notes, merge lineage, and database IDs.
+9. Appointment management capabilities are issued freshly in process memory immediately before provider submission (`AppointmentAccessService.issue`). Raw tokens and full `/randevu#<token>` URLs are NEVER persisted in `notification_outbox`, `notification_plans`, `notification_deliveries`, provider logs, or database columns.
+10. If provider submission fails after capability issuance, the issued capability remains valid in the database (hash-only); retrying worker execution will generate a fresh transient capability.
+11. Delivery rows are claimed via `FOR UPDATE SKIP LOCKED` with 5-minute leases. Two workers cannot own the same active delivery. Expired leases are safely recovered by subsequent worker sweeps.
+12. Transient failures (e.g. Netgsm 80/85, network timeouts, HTTP 500) trigger capped exponential backoff with a maximum of 8 attempts. Permanent errors fail immediately. Successful provider acceptance sets status to `SENT` with provider message ID (`jobid`).

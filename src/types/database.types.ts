@@ -519,6 +519,74 @@ export type Database = {
           },
         ];
       };
+      notification_deliveries: {
+        Row: {
+          attempt_count: number;
+          available_at: string;
+          business_id: string;
+          channel: Database["public"]["Enums"]["notification_delivery_channel"];
+          created_at: string;
+          failed_at: string | null;
+          id: string;
+          last_error_code: string | null;
+          locked_at: string | null;
+          locked_by: string | null;
+          plan_id: string;
+          provider: string;
+          provider_message_id: string | null;
+          recipient: string;
+          sent_at: string | null;
+          status: Database["public"]["Enums"]["notification_delivery_status"];
+          updated_at: string;
+        };
+        Insert: {
+          attempt_count?: number;
+          available_at?: string;
+          business_id: string;
+          channel?: Database["public"]["Enums"]["notification_delivery_channel"];
+          created_at?: string;
+          failed_at?: string | null;
+          id?: string;
+          last_error_code?: string | null;
+          locked_at?: string | null;
+          locked_by?: string | null;
+          plan_id: string;
+          provider: string;
+          provider_message_id?: string | null;
+          recipient: string;
+          sent_at?: string | null;
+          status?: Database["public"]["Enums"]["notification_delivery_status"];
+          updated_at?: string;
+        };
+        Update: {
+          attempt_count?: number;
+          available_at?: string;
+          business_id?: string;
+          channel?: Database["public"]["Enums"]["notification_delivery_channel"];
+          created_at?: string;
+          failed_at?: string | null;
+          id?: string;
+          last_error_code?: string | null;
+          locked_at?: string | null;
+          locked_by?: string | null;
+          plan_id?: string;
+          provider?: string;
+          provider_message_id?: string | null;
+          recipient?: string;
+          sent_at?: string | null;
+          status?: Database["public"]["Enums"]["notification_delivery_status"];
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "notification_deliveries_plan_fkey";
+            columns: ["business_id", "plan_id"];
+            isOneToOne: false;
+            referencedRelation: "notification_plans";
+            referencedColumns: ["business_id", "id"];
+          },
+        ];
+      };
       notification_outbox: {
         Row: {
           appointment_id: string;
@@ -1079,6 +1147,8 @@ export type Database = {
       appointment_source: "PUBLIC_WEB" | "MANUAL_ADMIN" | "MANUAL_STAFF";
       appointment_status: "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED" | "NO_SHOW";
       business_member_role: "OWNER" | "ADMIN" | "STAFF";
+      notification_delivery_channel: "SMS";
+      notification_delivery_status: "PENDING" | "PROCESSING" | "SENT" | "FAILED" | "CANCELLED";
       notification_outbox_status: "PENDING" | "PROCESSING" | "PROCESSED" | "FAILED";
       notification_plan_status: "PENDING" | "CANCELLED";
       notification_plan_type:
@@ -1211,6 +1281,8 @@ export const Constants = {
       appointment_source: ["PUBLIC_WEB", "MANUAL_ADMIN", "MANUAL_STAFF"],
       appointment_status: ["PENDING", "CONFIRMED", "CANCELLED", "COMPLETED", "NO_SHOW"],
       business_member_role: ["OWNER", "ADMIN", "STAFF"],
+      notification_delivery_channel: ["SMS"],
+      notification_delivery_status: ["PENDING", "PROCESSING", "SENT", "FAILED", "CANCELLED"],
       notification_outbox_status: ["PENDING", "PROCESSING", "PROCESSED", "FAILED"],
       notification_plan_status: ["PENDING", "CANCELLED"],
       notification_plan_type: [

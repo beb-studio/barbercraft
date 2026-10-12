@@ -135,6 +135,10 @@ export const notificationPlans = pgTable(
       name: "notification_plans_source_outbox_fkey",
     }).onDelete("restrict"),
     unique("notification_plans_idempotency_key_key").on(table.idempotencyKey),
+    unique("notification_plans_business_id_id_key").on(
+      table.businessId,
+      table.id
+    ),
     index("notification_plans_due_idx")
       .on(table.scheduledFor, table.createdAt, table.id)
       .where(sql`${table.status} = 'PENDING'`),

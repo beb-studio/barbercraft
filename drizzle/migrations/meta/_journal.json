@@ -134,6 +134,13 @@
       "when": 1791804798410,
       "tag": "0018_notification_settings_delete_cascade",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1791806000000,
+      "tag": "0019_notification_delivery",
+      "breakpoints": true
     }
   ]
 }

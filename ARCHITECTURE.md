@@ -470,3 +470,26 @@ drizzle/
   - Duplicate processing/recovered leases cannot duplicate plans because every immediate and reminder plan has a deterministic trusted key. Plan writes and source-outbox completion are atomic.
   - Turning the master switch off cancels future pending plans without changing appointments. Turning it on rebuilds only future reminders for operational appointments; it never recreates historical confirmations, reschedules, or cancellations. Rule edits likewise reconcile only future `PENDING`/`CONFIRMED` appointments.
   - A bounded server-only batch primitive composes the TASK 016A claim, planner, and sanitized retry path. It is callable by a future worker but starts no daemon and contacts no provider.
+
+### 3.24 Notification Delivery Worker & SMS Channel (TASK 016C)
+
+- **Provider Independence & Isolation**:
+  - The appointment, CRM, and notification planning domains remain strictly provider-independent. External SMS provider HTTP calls occur ONLY inside the delivery execution worker.
+  - Generic provider contract defined by `SmsProvider` interface (`sendSms(input): Promise<SendSmsResult>`), separating provider protocol details from the delivery domain.
+  - Concrete adapter: `NetgsmSmsProvider` implementing official Netgsm REST v2 JSON API (`https://api.netgsm.com.tr/sms/rest/v2/send`), with 10-digit Turkish phone normalization, Turkish alphanumeric header/originator semantics, Basic authentication, explicit error code mapping, and 10-second timeout.
+  - Test double: `TestSmsProvider` for deterministic contract, unit, and concurrency testing with recorded calls and forced outcomes.
+- **Delivery Domain (`notification_deliveries`)**:
+  - Independent delivery attempt domain separate from `notification_plans`. Plans remain intent ledgers (`PENDING` or `CANCELLED`); deliveries manage channel execution, leases, and attempt history.
+  - Status state machine: `PENDING` -> `PROCESSING` -> `SENT` (accepted by provider), `FAILED` (with retry or terminal), or `CANCELLED` (stale state / supersession).
+  - Recipient snapshot: Resolved authoritative phone number from the canonical customer profile at materialization time and persisted on the delivery row for audit, idempotency, and retries. Full customer profiles or private CRM notes are never copied.
+  - Channel enum: `notification_delivery_channel` (`SMS` in V1; architected for future expansion without modifying appointments, outbox, or planning).
+- **Transient Management Capability Issuance**:
+  - Raw appointment management capabilities are NEVER persisted in `notification_outbox`, `notification_plans`, `notification_deliveries`, provider audit logs, or test reports.
+  - Immediately before provider submission, a fresh capability is issued via `AppointmentAccessService.issue` in memory.
+  - Turkish transactional SMS templates render `APP_BASE_URL` + `/randevu#` + raw capability token.
+  - If provider dispatch fails, the issued token remains safely valid (hash-only in database); subsequent retry attempts generate a fresh transient capability.
+- **Worker Claiming & Concurrency**:
+  - Deliveries are claimed using PostgreSQL `FOR UPDATE SKIP LOCKED`, preventing competing workers from claiming identical delivery rows.
+  - Five-minute lease duration (`locked_at`, `locked_by`). Expired leases are safely recovered by subsequent worker sweeps.
+  - Exponential backoff retry strategy with a maximum of 8 attempts. Permanent errors (e.g. invalid phone `RECIPIENT_UNAVAILABLE`, Netgsm permanent error codes) fail immediately without useless retries.
+  - End-to-end processing pipeline: `processDueNotificationDeliveries` atomically materializes due plans, claims batches, validates pre-send state, and dispatches via the configured `SmsProvider`.
