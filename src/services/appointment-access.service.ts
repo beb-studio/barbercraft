@@ -12,6 +12,10 @@ import {
   canPubliclyCancelAppointment,
   canPubliclyRescheduleAppointment,
 } from "@/lib/appointment-lifecycle";
+import {
+  getBusinessBookingPolicy,
+  getMaximumPublicBookingLocalDate,
+} from "@/lib/business-booking-policy";
 import { AppointmentAccessRepository } from "@/repositories/appointment-access.repository";
 import {
   getStaffAvailability,
@@ -40,6 +44,9 @@ export interface AppointmentManagementView {
   businessLocalToday: string;
   canCancel: boolean;
   canReschedule: boolean;
+  cancellationWindowClosed: boolean;
+  rescheduleWindowClosed: boolean;
+  maximumRescheduleLocalDate: string | null;
 }
 
 export interface AppointmentRescheduleSlot {
@@ -147,6 +154,21 @@ async function toManagementView(
       serviceId: row.serviceId,
       executor,
     }));
+  const policy = getBusinessBookingPolicy(row);
+  const cancellationDecision = canPubliclyCancelAppointment({
+    status: row.status,
+    startsAt: row.startTime,
+    referenceNow,
+    policy,
+  });
+  const rescheduleDecision = canPubliclyRescheduleAppointment({
+    status: row.status,
+    startsAt: row.startTime,
+    referenceNow,
+    publicSchedulingEligible,
+    policy,
+  });
+  const beforeStart = referenceNow.getTime() < row.startTime.getTime();
 
   return {
     businessName: row.businessName,
@@ -164,17 +186,23 @@ async function toManagementView(
       row.businessTimezone,
       referenceNow
     ),
-    canCancel: canPubliclyCancelAppointment({
-      status: row.status,
-      startsAt: row.startTime,
+    canCancel: cancellationDecision.allowed,
+    canReschedule: rescheduleDecision.allowed,
+    cancellationWindowClosed:
+      !cancellationDecision.allowed &&
+      cancellationDecision.reason === "TOO_LATE" &&
+      policy.cancellationNoticeMinutes > 0 &&
+      beforeStart,
+    rescheduleWindowClosed:
+      !rescheduleDecision.allowed &&
+      rescheduleDecision.reason === "TOO_LATE" &&
+      policy.rescheduleNoticeMinutes > 0 &&
+      beforeStart,
+    maximumRescheduleLocalDate: getMaximumPublicBookingLocalDate({
       referenceNow,
-    }).allowed,
-    canReschedule: canPubliclyRescheduleAppointment({
-      status: row.status,
-      startsAt: row.startTime,
-      referenceNow,
-      publicSchedulingEligible,
-    }).allowed,
+      businessTimezone: row.businessTimezone,
+      maximumAdvanceBookingDays: policy.maximumAdvanceBookingDays,
+    }),
   };
 }
 
@@ -303,10 +331,18 @@ export const AppointmentAccessService = {
         return { outcome: "INVALID_CAPABILITY" } as const;
       }
 
+      const currentRow =
+        await AppointmentAccessRepository.findManagementViewByHash(
+          tokenHash,
+          tx
+        );
+      if (!currentRow) return { outcome: "INVALID_CAPABILITY" } as const;
+
       const decision = canPubliclyCancelAppointment({
         status: appointment.status,
         startsAt: appointment.startTime,
         referenceNow: mutationNow,
+        policy: getBusinessBookingPolicy(currentRow),
       });
 
       let changed = false;
@@ -318,15 +354,9 @@ export const AppointmentAccessService = {
         );
         if (!changed) return { outcome: "INVALID_CAPABILITY" } as const;
       } else if (decision.reason !== "ALREADY_CANCELLED") {
-        const currentView =
-          await AppointmentAccessRepository.findManagementViewByHash(
-            tokenHash,
-            tx
-          );
-        if (!currentView) return { outcome: "INVALID_CAPABILITY" } as const;
         return {
           outcome: "NOT_CANCELLABLE",
-          appointment: await toManagementView(currentView, mutationNow, tx),
+          appointment: await toManagementView(currentRow, mutationNow, tx),
         } as const;
       }
 
@@ -384,6 +414,7 @@ export const AppointmentAccessService = {
       startsAt: row.startTime,
       referenceNow,
       publicSchedulingEligible,
+      policy: getBusinessBookingPolicy(row),
     });
     const appointment = await toManagementView(
       row,
@@ -521,19 +552,20 @@ export const AppointmentAccessService = {
           serviceId: appointment.serviceId,
           executor: tx,
         });
-      const decision = canPubliclyRescheduleAppointment({
-        status: appointment.status,
-        startsAt: appointment.startTime,
-        referenceNow: mutationNow,
-        publicSchedulingEligible,
-      });
-
       const currentRow =
         await AppointmentAccessRepository.findManagementViewByHash(
           tokenHash,
           tx
         );
       if (!currentRow) return { outcome: "INVALID_CAPABILITY" } as const;
+
+      const decision = canPubliclyRescheduleAppointment({
+        status: appointment.status,
+        startsAt: appointment.startTime,
+        referenceNow: mutationNow,
+        publicSchedulingEligible,
+        policy: getBusinessBookingPolicy(currentRow),
+      });
       const currentView = await toManagementView(
         currentRow,
         mutationNow,

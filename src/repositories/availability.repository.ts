@@ -19,6 +19,10 @@ export interface AvailabilityInputs {
     bookingIntervalMinutes: number;
     active: boolean;
     onboardingCompletedAt: Date | null;
+    minimumBookingLeadMinutes: number;
+    maximumAdvanceBookingDays: number | null;
+    cancellationNoticeMinutes: number;
+    rescheduleNoticeMinutes: number;
   };
   staffProfile: {
     id: string;
@@ -53,6 +57,10 @@ export async function getAvailabilityInputs(
       bookingIntervalMinutes: businesses.bookingIntervalMinutes,
       active: businesses.active,
       onboardingCompletedAt: businesses.onboardingCompletedAt,
+      minimumBookingLeadMinutes: businesses.minimumBookingLeadMinutes,
+      maximumAdvanceBookingDays: businesses.maximumAdvanceBookingDays,
+      cancellationNoticeMinutes: businesses.cancellationNoticeMinutes,
+      rescheduleNoticeMinutes: businesses.rescheduleNoticeMinutes,
     })
     .from(businesses)
     .where(eq(businesses.id, businessId))

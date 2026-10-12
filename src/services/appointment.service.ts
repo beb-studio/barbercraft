@@ -478,6 +478,7 @@ export const AppointmentService = {
         executor: tx,
         excludeAppointmentId: input.appointmentId,
         serviceDurationMinutes: durationMinutes,
+        context: "INTERNAL",
       });
 
       if (availability.reason === "STAFF_NOT_BOOKABLE" || availability.reason === "CLOSED") {

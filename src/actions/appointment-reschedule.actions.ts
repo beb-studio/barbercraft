@@ -104,7 +104,8 @@ export async function getRescheduleAvailabilityAction(
       staffId: appt.staffId,
       serviceId: appt.serviceId,
       localDate,
-      excludeAppointmentId: appointmentId
+      excludeAppointmentId: appointmentId,
+      context: "INTERNAL",
     });
 
     return { success: true, data: availability };

@@ -91,7 +91,8 @@ export default async function ReschedulePage({
     staffId: staff.id,
     serviceId: svc.id,
     localDate: businessLocalToday,
-    excludeAppointmentId: appointmentId
+    excludeAppointmentId: appointmentId,
+    context: "INTERNAL",
   });
 
   return (

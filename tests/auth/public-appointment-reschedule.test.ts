@@ -35,6 +35,7 @@ let AppointmentAccessService: any;
 let AppointmentService: any;
 let getStaffAvailability: any;
 let canPubliclyRescheduleAppointment: any;
+let DEFAULT_BUSINESS_BOOKING_POLICY: any;
 let getAppointmentRescheduleAvailabilityAction: any;
 let rescheduleAppointmentAccessAction: any;
 
@@ -123,6 +124,9 @@ before(async () => {
   ));
   ({ canPubliclyRescheduleAppointment } = await import(
     "../../src/lib/appointment-lifecycle"
+  ));
+  ({ DEFAULT_BUSINESS_BOOKING_POLICY } = await import(
+    "../../src/lib/business-booking-policy"
   ));
   ({
     getAppointmentRescheduleAvailabilityAction,
@@ -327,6 +331,7 @@ describe("TASK 014C public reschedule policy and availability", { concurrency: f
           startsAt: start,
           referenceNow: before,
           publicSchedulingEligible: true,
+          policy: DEFAULT_BUSINESS_BOOKING_POLICY,
         }),
         { allowed: true }
       );
@@ -338,6 +343,7 @@ describe("TASK 014C public reschedule policy and availability", { concurrency: f
           startsAt: start,
           referenceNow: before,
           publicSchedulingEligible: true,
+          policy: DEFAULT_BUSINESS_BOOKING_POLICY,
         }).reason,
         "STATUS_NOT_RESCHEDULABLE"
       );
@@ -348,6 +354,7 @@ describe("TASK 014C public reschedule policy and availability", { concurrency: f
         startsAt: start,
         referenceNow: start,
         publicSchedulingEligible: true,
+        policy: DEFAULT_BUSINESS_BOOKING_POLICY,
       }).reason,
       "TOO_LATE"
     );
@@ -357,6 +364,7 @@ describe("TASK 014C public reschedule policy and availability", { concurrency: f
         startsAt: start,
         referenceNow: before,
         publicSchedulingEligible: false,
+        policy: DEFAULT_BUSINESS_BOOKING_POLICY,
       }).reason,
       "PUBLIC_SCHEDULING_UNAVAILABLE"
     );

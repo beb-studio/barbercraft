@@ -5,6 +5,8 @@ import {
 } from "@/services/public-booking.service";
 import { PublicBookingRepository } from "@/repositories/public-booking.repository";
 import { getBusinessLocalToday } from "@/lib/timezone";
+import { getMaximumPublicBookingLocalDate } from "@/lib/business-booking-policy";
+import { formatPolicyMinutes } from "@/lib/business-booking-policy-presentation";
 import { buttonVariants } from "@/components/ui/button";
 import { ArrowLeft, AlertCircle } from "lucide-react";
 import { ScheduleFlow } from "./schedule-flow";
@@ -90,7 +92,16 @@ export default async function SchedulePage({
   const timezone = bizRow?.timezone || "Europe/Istanbul";
 
   // Derive business-local today
-  const businessLocalToday = getBusinessLocalToday(timezone, new Date());
+  const referenceNow = new Date();
+  const businessLocalToday = getBusinessLocalToday(timezone, referenceNow);
+  const maximumLocalDate = getMaximumPublicBookingLocalDate({
+    referenceNow,
+    businessTimezone: timezone,
+    maximumAdvanceBookingDays: bizRow?.maximumAdvanceBookingDays ?? null,
+  });
+  const minimumLeadGuidance = bizRow?.minimumBookingLeadMinutes
+    ? `Randevular en erken ${formatPolicyMinutes(bizRow.minimumBookingLeadMinutes)} sonrası için alınabilir.`
+    : null;
 
   // Fetch initial available slots for business-local today
   const initialAvailability =
@@ -117,6 +128,8 @@ export default async function SchedulePage({
       staffSelection={staffSelection}
       initialDate={businessLocalToday}
       initialSlots={initialSlots}
+      maximumLocalDate={maximumLocalDate}
+      minimumLeadGuidance={minimumLeadGuidance}
     />
   );
 }

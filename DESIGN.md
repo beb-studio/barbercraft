@@ -52,3 +52,9 @@ The color palette uses tailored `oklch` or hex values to represent a clean, high
 - `Randevu Saatini Değiştir` is a normal primary management action. `Randevuyu İptal Et` remains a visually distinct destructive action.
 - Rescheduling uses a horizontally scrollable mobile date ribbon, a native extended-date affordance, 48px-or-larger time choices, and a deliberate old-versus-new comparison before confirmation.
 - Server-derived empty, stale-slot, ineligible, pending, and success states use concise Turkish messages with live-region semantics. No internal identifiers or policy details appear in the interface.
+
+## 8. Booking Policy Settings
+- `Randevu Kuralları` uses one primary settings card and one restrained, sticky desktop summary; mobile stacks both without narrowing the operational canvas.
+- Amount and unit controls are visually paired, fully labeled, keyboard accessible, and at least 44px high. Zero-value meaning and unlimited horizon state are explicit rather than encoded as magic numbers.
+- Saving is an ordinary primary action. Reset is secondary. Success, validation, and stale-edit recovery use restrained live feedback without destructive styling.
+- Public booking guidance remains concise and subordinate to date/slot selection. Notice-window messages on `/randevu` preserve the appointment summary as the visual anchor.

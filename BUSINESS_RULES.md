@@ -82,6 +82,7 @@
 | Manage Time Blocks | Yes | Yes | Yes (own blocks) | No |
 | Manage Customers (CRM Directory, Details, Notes) | Yes | Yes | No (Lookup only for booking) | No |
 | Review & Merge Duplicate Customers | Yes | Yes | No | No |
+| Configure Public Booking Rules | Yes | Yes | No | No |
 | View Own Appointment Through Secret Link | No tenant role required | No tenant role required | No tenant role required | Yes, valid capability only |
 | Cancel Own Future Appointment Through Secret Link | No tenant role required | No tenant role required | No tenant role required | Yes, valid capability only |
 | Reschedule Own Future Appointment Through Secret Link | No tenant role required | No tenant role required | No tenant role required | Yes, valid capability only |
@@ -365,7 +366,7 @@
 3. **Business Timezone Calendar Calculation**:
    - Calendar date selection operates strictly in the business's authoritative timezone (`businesses.timezone`).
    - `getBusinessLocalToday(timeZone)` evaluates the current local date in the business's timezone, correctly handling midnight boundary transitions.
-   - Public customers may select any date on or after business-local today without arbitrary upper limits (e.g. no 7-day or 14-day hard cap).
+   - Public customers may select dates on or after business-local today and, when configured, only through the inclusive `maximum_advance_booking_days` business-local date. `NULL` preserves unlimited future booking.
    - Past dates relative to business-local today are rejected by server actions and disabled in the UI.
 4. **Availability Engine Consumption & Read-Only Semantics**:
    - Public slot generation delegates directly to the hardened `getStaffAvailability` core availability engine.
@@ -441,8 +442,8 @@
 ## 17. Public Appointment Cancellation Rules (TASK 014B)
 
 1. A valid, unexpired, unrevoked appointment capability is the sole public cancellation authority. Browser-supplied appointment, business, and customer IDs grant no authority.
-2. Public cancellation is allowed only for `PENDING` or `CONFIRMED` appointments and only while authoritative server time is strictly earlier than `start_time`. At or after the start instant it is forbidden.
-3. V1 has no configurable cancellation-notice window. The centralized policy is the future extension point for such a rule.
+2. Public cancellation is allowed only for `PENDING` or `CONFIRMED` appointments and while `now + cancellation_notice_minutes <= start_time`. A positive window includes its exact cutoff; zero preserves the strict pre-start rule, so at/after start is forbidden.
+3. Cancellation policy is loaded from current trusted tenant state at mutation time; browser values and appointment-time policy snapshots grant no authority.
 4. Cancellation sets the durable appointment status to `CANCELLED` and lets the existing `updated_at` trigger record mutation time. It never deletes an appointment or changes customer, staff, service, start/end, snapshots, notes, or `cancellation_reason`.
 5. Repeated equivalent cancellation is idempotent: an already `CANCELLED` appointment returns a safe cancelled result without another lifecycle change. `COMPLETED` and `NO_SHOW` are terminal and cannot be publicly cancelled.
 6. Mutation uses one transaction and the established staff-then-appointment lock hierarchy. Capability, current status, and current time are revalidated after waiting for locks.
@@ -457,7 +458,7 @@
 ## 18. Public Appointment Rescheduling Rules (TASK 014C)
 
 1. A valid, unexpired, unrevoked appointment capability is the sole public rescheduling and reschedule-availability authority. Browser-supplied tenant or entity IDs, duration, service, and staff grant no authority.
-2. Rescheduling is allowed only for `PENDING` or `CONFIRMED`, strictly before the current appointment start, while the business is active/onboarded and the assigned staff/service relationship remains publicly bookable with a complete effective schedule.
+2. Rescheduling is allowed only for `PENDING` or `CONFIRMED` while the current appointment satisfies `reschedule_notice_minutes`, and while the business is active/onboarded and the assigned staff/service relationship remains publicly bookable with a complete effective schedule. Zero notice preserves strict pre-start behavior.
 3. Public rescheduling changes date/time only. Status, concrete staff, service, customer, source, notes, cancellation reason, and every service snapshot remain unchanged. A prior `Fark Etmez` booking is never reassigned.
 4. Slot length comes from `service_duration_snapshot`, not a later catalog edit. The shared availability engine enforces business/custom hours, staff blocks, current time, booking interval, and other appointments while excluding the current appointment itself.
 5. A displayed slot is advisory. Mutation locks staff, appointment, and capability in the established order, then revalidates capability, lifecycle, current public eligibility, and exact slot availability from server truth.
@@ -465,4 +466,36 @@
 7. Successful rescheduling preserves status and atomically refreshes every token expiry to the new end plus 24 hours. Active tokens observe the new schedule; revoked tokens remain revoked.
 8. Cancellation and all scheduling writers serialize through compatible locks. Cancellation cannot be undone by a reschedule, and competing scheduling operations cannot produce double booking or mismatched start/end values.
 9. The public DTO exposes only localized appointment presentation, `canCancel`, `canReschedule`, and minimal server-derived slots. It never exposes IDs, token metadata, CRM/appointment notes, merge lineage, or private staff/member records.
-10. V1 has no configurable rescheduling notice window, staff switch, service switch, `Fark Etmez` reassignment, customer account, notification, cancellation reason, billing, loyalty, or marketing behavior.
+10. V1 has no staff switch, service switch, `Fark Etmez` reassignment, customer account, notification, cancellation reason, billing, loyalty, or marketing behavior.
+
+---
+
+## 19. Business Booking Policy Rules (TASK 015A)
+
+1. Each business owns one current policy directly on its `businesses` row: minimum public booking lead minutes, nullable maximum advance days, cancellation notice minutes, and reschedule notice minutes.
+2. Compatibility defaults are `0`, `NULL` (unlimited), `0`, and `0`; migration must not remove any public action an existing tenant previously had.
+3. Minute policies must be safe integers from `0` through `525600`. Maximum advance must be `NULL` or an integer from `1` through `730`. Application validation and database checks both enforce these limits.
+4. A new public appointment must begin at or after `now + minimum_booking_lead_minutes`. Exact lead boundary is allowed.
+5. A configured maximum advance is calculated from the business-local current calendar date. The final local day is included; later local dates are forbidden. Browser-local and UTC calendar dates are not authority.
+6. Public reschedule targets obey both the minimum lead and maximum advance rules in addition to the notice rule on the existing appointment.
+7. Policy is loaded from trusted current business state for availability and again within mutation transactions. The browser cannot submit authoritative policy values.
+8. Policy changes do not mutate existing appointments, snapshots, access tokens, customers, or CRM history. Current policy controls later public booking/cancellation/reschedule decisions; V1 stores no per-appointment policy snapshot.
+9. These rules govern public booking and capability self-service only. Manual/internal booking and authenticated internal rescheduling remain subject to existing schedule/conflict/lifecycle rules, not public policy windows.
+10. Business suspension/onboarding, staff/service eligibility, working hours, time blocks, conflicts, and capability validity remain independent mandatory gates; booking policy cannot bypass them.
+
+---
+
+## 20. Booking Policy Settings Rules (TASK 015B)
+
+1. Active tenant `OWNER` and `ADMIN` memberships may read and update `/dashboard/settings/booking`; `STAFF`, unauthenticated users, and platform-only administrators may not.
+2. Tenant authority is derived server-side. The settings mutation accepts no browser-authoritative business identifier and cannot target another tenant by forged input.
+3. Lead, cancellation notice, and reschedule notice are entered as whole-number amount plus minute/hour/day unit, converted with checked integer arithmetic, and validated against TASK 015A bounds. Decimal, negative, overflow, and excessive values are rejected.
+4. Existing minute values render without precision loss: exact ordinary days are days, exact sub-day hours are hours, zero is minutes, and values such as 1500 minutes remain minutes rather than being rounded or reinterpreted.
+5. Unlimited maximum advance is an explicit state and persists exactly as `NULL`; finite mode requires `1..730` calendar days.
+6. All four values update atomically. Invalid input changes none of them and policy mutation changes no appointment, access token, service snapshot, customer, or unrelated business column.
+7. The exact current business `updated_at` value is an optimistic concurrency marker. After one operator commits, a stale form cannot silently overwrite it; current committed values are returned for review.
+8. Policy remains current state rather than an appointment snapshot. Updated cancellation/reschedule windows may affect existing appointments' later public actions without rewriting those appointments.
+9. Public booking quick dates and native date controls reflect the configured inclusive business-local horizon, and the UI presents lead/horizon guidance. The server remains authoritative against direct or stale requests.
+10. Public management read access remains available when a notice window closes. The UI may explain that online cancellation or rescheduling has ended without exposing internal policy codes.
+11. Manual/internal booking and authenticated internal rescheduling remain outside these public-customer policy restrictions.
+12. Onboarding remains unchanged, and TASK 015 introduces no notification, customer-account, billing, loyalty, or marketing behavior.
