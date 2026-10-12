@@ -570,3 +570,26 @@
 8. Customer counting reuses established canonical family resolution: `COALESCE(customers.merged_into_customer_id, appointments.customer_id)`. Merged alias customers and primary profiles count as a single logical customer.
 9. "New Customer" is defined as a logical customer whose very first non-cancelled appointment at the business occurred within the selected range. "Returning Customer" is defined as `uniqueCustomers - newCustomers`.
 10. Read models strictly omit sensitive customer data (phone numbers, CRM notes, internal appointment notes) and capability tokens. Queries are strictly read-only and execute via server-side SQL aggregation with zero N+1 overhead.
+
+---
+
+## 25. Business Dashboard & Analytics UX Rules (TASK 017B)
+
+1. `OWNER` and `ADMIN` users receive the Business Analytics Command Center when visiting `/dashboard`.
+2. `STAFF` users accessing `/dashboard` are strictly isolated from business-wide analytics, financial totals, other staff members' workloads, and customer acquisition metrics. `STAFF` receives `StaffDashboardView` showing their personal operational agenda for today.
+3. Range presets are driven by the `?range` search parameter (`TODAY`, `LAST_7_DAYS`, `LAST_30_DAYS`). Missing or invalid parameters safely fall back to `LAST_7_DAYS`.
+4. Booked service value presentation:
+   - Must be labeled **"Tamamlanan Hizmet Tutarı"**.
+   - Must include explanation tooltip/subtitle: *"Tamamlanan randevuların kayıtlı hizmet tutarıdır; tahsilat verisi değildir."*
+   - Prohibited terms: "Ciro", "Gelir", "Tahsilat", "Net Gelir", "Revenue", "Kâr".
+5. Staff workload card:
+   - Must be labeled "Personel İş Yükü Dağılımı".
+   - Displays neutral appointment counts, completion counts, and completed service values.
+   - Prohibits salary, commission, or revenue terminology.
+6. Rate presentation:
+   - Rates are formatted using Turkish percentage conventions (e.g. `%12,5` via `formatPercentage`).
+   - Zero-denominator null values render safely as `"—"`.
+7. Mobile-first ergonomics:
+   - Interactive elements (range tabs, action buttons) enforce `min-h-[44px]` touch targets.
+   - Zero horizontal overflow on 390px mobile viewports.
+   - Accessible table view toggle available for daily trend data.

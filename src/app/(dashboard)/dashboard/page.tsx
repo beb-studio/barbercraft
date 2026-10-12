@@ -2,26 +2,36 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import {
   Calendar,
-  Clock,
   Scissors,
   Users,
   Plus,
   ArrowRight,
-  CheckCircle2,
   CalendarCheck2,
-  User,
+  AlertCircle,
 } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { getCurrentUser, getMemberships } from "@/lib/auth/session";
 import { getBusinessById } from "@/repositories/business.repository";
 import { getDashboardDailyAgenda } from "@/services/dashboard-appointments.service";
-import { getStaffMembersWithProfilesByBusiness } from "@/repositories/staff.repository";
-import { getServices } from "@/services/service.service";
+import { BusinessAnalyticsService } from "@/services/business-analytics.service";
+import { isValidAnalyticsPreset } from "@/lib/business-analytics/range";
 import { getBusinessLocalToday } from "@/lib/timezone";
 import { getAppointmentStatusLabel } from "@/lib/presentation";
+import type { AnalyticsRangePreset, BusinessDashboardAnalytics } from "@/types/business-analytics";
+
+import {
+  RangeSelector,
+  TodayOperationalStrip,
+  KpiMetricCards,
+  DailyTrendChart,
+  TopServicesCard,
+  StaffWorkloadCard,
+  BusyPeriodsCard,
+  CustomerSummaryCard,
+} from "@/components/dashboard/analytics";
+import { StaffDashboardView } from "@/components/dashboard/staff-dashboard-view";
 
 const STATUS_BADGES: Record<string, { bg: string; text: string; border: string }> = {
   PENDING: { bg: "bg-amber-500/10", text: "text-amber-700 dark:text-amber-400", border: "border-amber-500/30" },
@@ -31,7 +41,11 @@ const STATUS_BADGES: Record<string, { bg: string; text: string; border: string }
   NO_SHOW: { bg: "bg-zinc-500/10", text: "text-zinc-700 dark:text-zinc-400", border: "border-zinc-500/30" },
 };
 
-export default async function DashboardPage() {
+interface DashboardPageProps {
+  searchParams: Promise<{ range?: string }>;
+}
+
+export default async function DashboardPage({ searchParams }: DashboardPageProps) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
@@ -45,34 +59,73 @@ export default async function DashboardPage() {
   const timezone = business?.timezone || "Europe/Istanbul";
   const todayStr = getBusinessLocalToday(timezone);
 
-  // Authoritative operational data
-  const { appointments: todayAppointments } = await getDashboardDailyAgenda(
-    businessId,
-    user.id,
-    role,
-    todayStr
-  );
+  // ============================================================
+  // ROLE BRANCH 1: STAFF OPERATIONAL DASHBOARD
+  // Strictly isolates STAFF from business-wide analytics & financials
+  // ============================================================
+  if (role === "STAFF") {
+    const { appointments: staffTodayAppointments } = await getDashboardDailyAgenda(
+      businessId,
+      user.id,
+      role,
+      todayStr
+    );
 
-  const pendingAppointments = todayAppointments.filter((a) => a.status === "PENDING").length;
-  const confirmedAppointments = todayAppointments.filter((a) => a.status === "CONFIRMED").length;
-  const completedAppointments = todayAppointments.filter((a) => a.status === "COMPLETED").length;
-
-  let totalStaff = 0;
-  let activeStaff = 0;
-  let bookableStaff = 0;
-  let activeServices = 0;
-
-  if (role === "OWNER" || role === "ADMIN") {
-    const rawStaff = await getStaffMembersWithProfilesByBusiness(businessId);
-    totalStaff = rawStaff.length;
-    activeStaff = rawStaff.filter((s) => s.active && (s.hasStaffProfile ? s.staffActive : true)).length;
-    bookableStaff = rawStaff.filter((s) => s.publicBookingEnabled).length;
-
-    const servicesList = await getServices(businessId);
-    activeServices = servicesList.filter((s) => s.active).length;
+    return (
+      <StaffDashboardView
+        businessName={business?.name || "İşletme"}
+        userName={user.email || "Personel"}
+        timezone={timezone}
+        todayDateStr={todayStr}
+        todayAppointments={staffTodayAppointments}
+      />
+    );
   }
 
-  // Format today's date for header display
+  // ============================================================
+  // ROLE BRANCH 2: OWNER & ADMIN BUSINESS ANALYTICS COMMAND CENTER
+  // ============================================================
+  const resolvedParams = await searchParams;
+  const rangeInput = resolvedParams.range;
+  const preset: AnalyticsRangePreset =
+    isValidAnalyticsPreset(rangeInput) ? rangeInput : "LAST_7_DAYS";
+
+  let analytics: BusinessDashboardAnalytics;
+  let todayAppointments: Awaited<ReturnType<typeof getDashboardDailyAgenda>>["appointments"] = [];
+
+  try {
+    const [analyticsResult, agendaResult] = await Promise.all([
+      BusinessAnalyticsService.getDashboardAnalytics({ businessId, preset }),
+      getDashboardDailyAgenda(businessId, user.id, role, todayStr),
+    ]);
+    analytics = analyticsResult;
+    todayAppointments = agendaResult.appointments;
+  } catch (error) {
+    console.error("Dashboard analytics loading failed:", error);
+    return (
+      <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-8 text-center space-y-4">
+        <div className="h-12 w-12 rounded-full bg-destructive/10 text-destructive flex items-center justify-center mx-auto">
+          <AlertCircle className="h-6 w-6" />
+        </div>
+        <div>
+          <h2 className="text-base font-bold text-foreground">
+            Analitik verileri yüklenirken bir sorun oluştu
+          </h2>
+          <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
+            İşletme analitik gösterge paneli hazırlanırken geçici bir hata meydana geldi. Lütfen sayfayı yenilemeyi deneyin.
+          </p>
+        </div>
+        <Link
+          href="/dashboard"
+          className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+        >
+          Yeniden Dene
+        </Link>
+      </div>
+    );
+  }
+
+  // Header date display
   const displayToday = new Intl.DateTimeFormat("tr-TR", {
     weekday: "long",
     day: "numeric",
@@ -92,25 +145,25 @@ export default async function DashboardPage() {
               Genel Bakış
             </h1>
             <Badge variant="outline" className="text-xs">
-              {role === "OWNER" ? "İşletme Sahibi" : role === "ADMIN" ? "Yönetici" : "Personel"}
+              {role === "OWNER" ? "İşletme Sahibi" : "Yönetici"}
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground mt-1 capitalize">
-            {displayToday} • <span className="font-medium text-foreground">{business?.name}</span>
+            {displayToday} • <span className="font-medium text-foreground">{analytics.businessName}</span>
           </p>
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap">
           <Link
             href="/dashboard/appointments/new"
-            className={cn(buttonVariants({ size: "sm" }), "shadow-xs font-semibold gap-1.5")}
+            className={cn(buttonVariants({ size: "sm" }), "shadow-xs font-semibold gap-1.5 min-h-[44px]")}
           >
             <Plus className="h-4 w-4" />
             <span>Yeni Randevu</span>
           </Link>
           <Link
             href="/dashboard/appointments"
-            className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1.5")}
+            className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1.5 min-h-[44px]")}
           >
             <Calendar className="h-4 w-4" />
             <span>Ajandaya Git</span>
@@ -119,137 +172,62 @@ export default async function DashboardPage() {
       </div>
 
       {/* ============================================================ */}
-      {/* 2. OPERATIONAL STATUS METRICS (Real data only)               */}
+      {/* 2. RANGE SELECTOR (Bugün / Son 7 Gün / Son 30 Gün)           */}
       {/* ============================================================ */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {/* Today's Appointments Card */}
-        <Card className="border-border shadow-xs hover:border-primary/40 transition-colors">
-          <CardHeader className="p-5 pb-2 flex flex-row items-center justify-between space-y-0">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Bugünkü Randevular
-            </span>
-            <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-              <Calendar className="h-4 w-4" />
-            </div>
-          </CardHeader>
-          <CardContent className="p-5 pt-0">
-            <div className="text-3xl font-extrabold tracking-tight text-foreground">
-              {todayAppointments.length}
-            </div>
-            <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
-              {pendingAppointments > 0 && (
-                <span className="text-amber-700 font-medium">
-                  {pendingAppointments} bekliyor
-                </span>
-              )}
-              {confirmedAppointments > 0 && (
-                <span className="text-blue-700 font-medium">
-                  {confirmedAppointments} onaylı
-                </span>
-              )}
-              {completedAppointments > 0 && (
-                <span className="text-emerald-700 font-medium">
-                  {completedAppointments} tamamlandı
-                </span>
-              )}
-              {todayAppointments.length === 0 && (
-                <span>Planlanan randevu yok</span>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+      <RangeSelector currentRange={analytics.selectedRange} />
 
-        {/* Staff & Booking Readiness Card (For OWNER/ADMIN) */}
-        {role !== "STAFF" ? (
-          <Card className="border-border shadow-xs hover:border-primary/40 transition-colors">
-            <CardHeader className="p-5 pb-2 flex flex-row items-center justify-between space-y-0">
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Ekip Durumu
-              </span>
-              <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                <Users className="h-4 w-4" />
-              </div>
-            </CardHeader>
-            <CardContent className="p-5 pt-0">
-              <div className="text-3xl font-extrabold tracking-tight text-foreground">
-                {activeStaff} <span className="text-base font-normal text-muted-foreground">/ {totalStaff} aktif</span>
-              </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                {bookableStaff > 0 ? (
-                  <span className="text-emerald-700 font-medium inline-flex items-center gap-1">
-                    <CheckCircle2 className="h-3 w-3" /> {bookableStaff} personel online randevuya açık
-                  </span>
-                ) : (
-                  <span>Henüz online randevuya açık personel yok</span>
-                )}
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card className="border-border shadow-xs">
-            <CardHeader className="p-5 pb-2 flex flex-row items-center justify-between space-y-0">
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Kişisel Ajanda
-              </span>
-              <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                <User className="h-4 w-4" />
-              </div>
-            </CardHeader>
-            <CardContent className="p-5 pt-0">
-              <div className="text-3xl font-extrabold tracking-tight text-foreground">
-                {todayAppointments.length}
-              </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                Bugün size atanmış toplam randevu adedi
-              </p>
-            </CardContent>
-          </Card>
-        )}
+      {/* ============================================================ */}
+      {/* 3. TODAY / OPERATIONAL STRIP (Real-time actionable context)   */}
+      {/* ============================================================ */}
+      <TodayOperationalStrip
+        todaySummary={analytics.todaySummary}
+        upcomingSummary={analytics.upcomingSummary}
+        todayDateStr={todayStr}
+      />
 
-        {/* Services / Tarife Card (For OWNER/ADMIN) or Working Hours summary */}
-        {role !== "STAFF" ? (
-          <Card className="border-border shadow-xs hover:border-primary/40 transition-colors">
-            <CardHeader className="p-5 pb-2 flex flex-row items-center justify-between space-y-0">
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Hizmet Tarifesi
-              </span>
-              <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                <Scissors className="h-4 w-4" />
-              </div>
-            </CardHeader>
-            <CardContent className="p-5 pt-0">
-              <div className="text-3xl font-extrabold tracking-tight text-foreground">
-                {activeServices} <span className="text-base font-normal text-muted-foreground">aktif hizmet</span>
-              </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                Müşterilerin seçebileceği tanımlı hizmetler
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card className="border-border shadow-xs">
-            <CardHeader className="p-5 pb-2 flex flex-row items-center justify-between space-y-0">
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Sistem Saati
-              </span>
-              <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                <Clock className="h-4 w-4" />
-              </div>
-            </CardHeader>
-            <CardContent className="p-5 pt-0">
-              <div className="text-2xl font-bold tracking-tight text-foreground">
-                {timezone.split("/")[1]?.replace("_", " ") || timezone}
-              </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                İşletme yerel çalışma zaman dilimi
-              </p>
-            </CardContent>
-          </Card>
-        )}
+      {/* ============================================================ */}
+      {/* 4. SELECTED-RANGE KPI METRIC CARDS                           */}
+      {/* ============================================================ */}
+      <KpiMetricCards
+        rangeSummary={analytics.rangeSummary}
+        currency={analytics.currency}
+      />
+
+      {/* ============================================================ */}
+      {/* 5. DAILY TREND VISUALIZATION                                 */}
+      {/* ============================================================ */}
+      <DailyTrendChart
+        dailyTrend={analytics.dailyTrend}
+        currency={analytics.currency}
+      />
+
+      {/* ============================================================ */}
+      {/* 6. TWO-COLUMN: TOP SERVICES & STAFF WORKLOAD                 */}
+      {/* ============================================================ */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <TopServicesCard
+          topServices={analytics.topServices}
+          currency={analytics.currency}
+        />
+        <StaffWorkloadCard
+          staffPerformance={analytics.staffPerformance}
+          currency={analytics.currency}
+        />
       </div>
 
       {/* ============================================================ */}
-      {/* 3. TODAY'S APPOINTMENTS AGENDA STREAM                         */}
+      {/* 7. TWO-COLUMN: BUSY PERIODS & CUSTOMER SUMMARY               */}
+      {/* ============================================================ */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <BusyPeriodsCard busyPeriods={analytics.busyPeriods} />
+        <CustomerSummaryCard
+          rangeSummary={analytics.rangeSummary}
+          upcomingSummary={analytics.upcomingSummary}
+        />
+      </div>
+
+      {/* ============================================================ */}
+      {/* 8. TODAY'S APPOINTMENTS AGENDA STREAM                         */}
       {/* ============================================================ */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -263,7 +241,7 @@ export default async function DashboardPage() {
           </div>
           <Link
             href="/dashboard/appointments"
-            className="text-xs font-medium text-primary hover:underline inline-flex items-center gap-1"
+            className="text-xs font-medium text-primary hover:underline inline-flex items-center gap-1 min-h-[36px] items-center"
           >
             <span>Tüm Ajandayı Gör</span>
             <ArrowRight className="h-3 w-3" />
@@ -285,7 +263,7 @@ export default async function DashboardPage() {
             </div>
             <Link
               href="/dashboard/appointments/new"
-              className={cn(buttonVariants({ size: "sm" }), "mt-2 shadow-xs")}
+              className={cn(buttonVariants({ size: "sm" }), "mt-2 shadow-xs min-h-[44px]")}
             >
               <Plus className="mr-1.5 h-3.5 w-3.5" />
               Randevu Oluştur
@@ -340,7 +318,7 @@ export default async function DashboardPage() {
                         <td className="py-3 px-4 text-right whitespace-nowrap">
                           <Link
                             href={`/dashboard/appointments?date=${todayStr}`}
-                            className="text-xs font-medium text-primary hover:underline"
+                            className="text-xs font-medium text-primary hover:underline min-h-[36px] inline-flex items-center"
                           >
                             Yönet
                           </Link>
@@ -383,7 +361,7 @@ export default async function DashboardPage() {
                       <span>Personel: {staffName}</span>
                       <Link
                         href={`/dashboard/appointments?date=${todayStr}`}
-                        className="text-primary font-medium hover:underline"
+                        className="text-primary font-medium hover:underline min-h-[36px] inline-flex items-center"
                       >
                         Yönet &rarr;
                       </Link>
@@ -397,7 +375,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* ============================================================ */}
-      {/* 4. QUICK SHORTCUTS                                           */}
+      {/* 9. QUICK SHORTCUTS                                           */}
       {/* ============================================================ */}
       <div className="space-y-4 pt-4 border-t border-border/60">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
@@ -407,7 +385,7 @@ export default async function DashboardPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <Link
             href="/dashboard/appointments/new"
-            className="flex items-center gap-3 p-3.5 rounded-xl border border-border bg-card hover:border-primary/40 hover:bg-muted/30 transition-all group shadow-2xs"
+            className="flex items-center gap-3 p-3.5 rounded-xl border border-border bg-card hover:border-primary/40 hover:bg-muted/30 transition-all group shadow-2xs min-h-[56px]"
           >
             <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors shrink-0">
               <Plus className="h-4 w-4" />
@@ -420,7 +398,7 @@ export default async function DashboardPage() {
 
           <Link
             href="/dashboard/appointments"
-            className="flex items-center gap-3 p-3.5 rounded-xl border border-border bg-card hover:border-primary/40 hover:bg-muted/30 transition-all group shadow-2xs"
+            className="flex items-center gap-3 p-3.5 rounded-xl border border-border bg-card hover:border-primary/40 hover:bg-muted/30 transition-all group shadow-2xs min-h-[56px]"
           >
             <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors shrink-0">
               <Calendar className="h-4 w-4" />
@@ -431,35 +409,31 @@ export default async function DashboardPage() {
             </div>
           </Link>
 
-          {role !== "STAFF" && (
-            <>
-              <Link
-                href="/dashboard/services"
-                className="flex items-center gap-3 p-3.5 rounded-xl border border-border bg-card hover:border-primary/40 hover:bg-muted/30 transition-all group shadow-2xs"
-              >
-                <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors shrink-0">
-                  <Scissors className="h-4 w-4" />
-                </div>
-                <div className="flex flex-col min-w-0">
-                  <span className="text-sm font-semibold text-foreground truncate">Hizmet Tarifesi</span>
-                  <span className="text-xs text-muted-foreground truncate">Fiyat ve süreler</span>
-                </div>
-              </Link>
+          <Link
+            href="/dashboard/services"
+            className="flex items-center gap-3 p-3.5 rounded-xl border border-border bg-card hover:border-primary/40 hover:bg-muted/30 transition-all group shadow-2xs min-h-[56px]"
+          >
+            <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors shrink-0">
+              <Scissors className="h-4 w-4" />
+            </div>
+            <div className="flex flex-col min-w-0">
+              <span className="text-sm font-semibold text-foreground truncate">Hizmet Tarifesi</span>
+              <span className="text-xs text-muted-foreground truncate">Fiyat ve süreler</span>
+            </div>
+          </Link>
 
-              <Link
-                href="/dashboard/staff"
-                className="flex items-center gap-3 p-3.5 rounded-xl border border-border bg-card hover:border-primary/40 hover:bg-muted/30 transition-all group shadow-2xs"
-              >
-                <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors shrink-0">
-                  <Users className="h-4 w-4" />
-                </div>
-                <div className="flex flex-col min-w-0">
-                  <span className="text-sm font-semibold text-foreground truncate">Personel Ekibi</span>
-                  <span className="text-xs text-muted-foreground truncate">Çalışma saatleri ve izinler</span>
-                </div>
-              </Link>
-            </>
-          )}
+          <Link
+            href="/dashboard/staff"
+            className="flex items-center gap-3 p-3.5 rounded-xl border border-border bg-card hover:border-primary/40 hover:bg-muted/30 transition-all group shadow-2xs min-h-[56px]"
+          >
+            <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors shrink-0">
+              <Users className="h-4 w-4" />
+            </div>
+            <div className="flex flex-col min-w-0">
+              <span className="text-sm font-semibold text-foreground truncate">Personel Ekibi</span>
+              <span className="text-xs text-muted-foreground truncate">Çalışma saatleri ve izinler</span>
+            </div>
+          </Link>
         </div>
       </div>
     </div>

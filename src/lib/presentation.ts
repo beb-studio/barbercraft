@@ -2,6 +2,7 @@ import type { AppointmentStatus, AppointmentSource } from "@/db/schema/appointme
 import type { BusinessMemberRole } from "@/types";
 import type { TimeBlockType } from "@/db/schema/scheduling";
 import type { PlatformAdminRole } from "@/db/schema/platform";
+import type { AnalyticsRangePreset } from "@/types/business-analytics";
 
 /**
  * Returns user-facing Turkish label for AppointmentStatus.
@@ -127,6 +128,38 @@ export function getCurrencySymbol(currency: string = "TRY"): string {
     return "₺";
   }
   return currency;
+}
+
+/**
+ * Formats a decimal rate (0..1) as a Turkish percentage string (e.g. "%12,5" or "%0").
+ * Returns "—" if rate is null or undefined.
+ */
+export function formatPercentage(rate: number | null | undefined): string {
+  if (rate === null || rate === undefined || isNaN(rate)) {
+    return "—";
+  }
+  const pct = rate * 100;
+  const formatted = new Intl.NumberFormat("tr-TR", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 1,
+  }).format(pct);
+  return `%${formatted}`;
+}
+
+/**
+ * Returns user-facing Turkish label for AnalyticsRangePreset.
+ */
+export function getAnalyticsRangePresetLabel(preset: AnalyticsRangePreset | string): string {
+  switch (preset) {
+    case "TODAY":
+      return "Bugün";
+    case "LAST_7_DAYS":
+      return "Son 7 Gün";
+    case "LAST_30_DAYS":
+      return "Son 30 Gün";
+    default:
+      return preset;
+  }
 }
 
 /**
