@@ -57,6 +57,10 @@ export const notificationOutbox = pgTable(
   },
   (table) => [
     unique("notification_outbox_idempotency_key_key").on(table.idempotencyKey),
+    unique("notification_outbox_business_id_id_key").on(
+      table.businessId,
+      table.id
+    ),
     foreignKey({
       columns: [table.businessId, table.appointmentId],
       foreignColumns: [appointments.businessId, appointments.id],

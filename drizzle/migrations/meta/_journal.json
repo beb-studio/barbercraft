@@ -120,6 +120,20 @@
       "when": 1791792060432,
       "tag": "0016_notification_outbox",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1791803666046,
+      "tag": "0017_notification_planning",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1791804798410,
+      "tag": "0018_notification_settings_delete_cascade",
+      "breakpoints": true
     }
   ]
 }

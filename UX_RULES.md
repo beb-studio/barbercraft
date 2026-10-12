@@ -90,3 +90,13 @@ The application is engineered strictly **mobile-first**.
 5. Inputs and actions meet the 44px touch target. Help text is associated with controls, pending state disables conflicting input, and success/errors are announced with live-region semantics.
 6. Public booking date controls must not encourage dates beyond the trusted business-local horizon. Lead/horizon guidance is concise; server-derived availability remains authoritative.
 7. When notice alone closes online cancellation/rescheduling, `/randevu` explains that the customer may contact the business while retaining secure read access.
+
+---
+
+## 7. Notification Settings
+
+1. `/dashboard/settings/notifications` is available only to tenant OWNER/ADMIN users and is not advertised to STAFF in dashboard navigation.
+2. The customer-notifications switch conveys its checked and disabled relationship programmatically. Turning it off preserves but clearly deactivates event and reminder choices.
+3. A reminder row pairs an associated whole-number amount with an accessible minute/hour/day selector. Values must round-trip without rounding; duplicate canonical offsets and the three-rule limit receive inline Turkish validation.
+4. Add/remove, save, pending, success, and stale-state controls are keyboard accessible, have visible focus, meet the 44px touch target rule, and communicate results through live feedback rather than color alone.
+5. The page presents configuration only. It must not show recipient contacts, capability URLs, provider metadata, or assertions that an external message has been delivered.

@@ -9,6 +9,7 @@ export * from "./scheduling";
 export * from "./appointments";
 export * from "./appointment_access_tokens";
 export * from "./notification_outbox";
+export * from "./notification_planning";
 export * from "./platform";
 export * from "./customer_notes";
 

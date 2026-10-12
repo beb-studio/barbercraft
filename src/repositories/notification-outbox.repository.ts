@@ -109,8 +109,8 @@ export const NotificationOutboxRepository = {
     eventId: string;
     workerId: string;
     referenceNow: Date;
-  }): Promise<boolean> {
-    const rows = await db
+  }, executor: DbExecutor = db): Promise<boolean> {
+    const rows = await executor
       .update(notificationOutbox)
       .set({
         status: "PROCESSED",

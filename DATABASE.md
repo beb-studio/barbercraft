@@ -256,6 +256,23 @@ Durable, provider-neutral appointment notification intents.
 - Events and appointments commit atomically. Migration `0016_notification_outbox.sql` creates no retroactive events and modifies no appointment, token, customer, or CRM history.
 - Rows are retained after processing or terminal failure. TASK 016A defines no physical retention cleanup.
 
+### 3.14 Notification planning tables
+
+`business_notification_settings` is a one-to-one extension of `businesses`, keyed by `business_id` with a restrictive foreign key. It stores `customer_notifications_enabled` (default `false`) plus `appointment_created_enabled`, `appointment_rescheduled_enabled`, and `appointment_cancelled_enabled` (each default `true`), with created/updated timestamps. Migration `0017_notification_planning.sql` backfills one safe settings row for every existing business and an `AFTER INSERT` trigger provisions future businesses.
+
+`business_notification_reminder_rules` stores `id`, `business_id`, `minutes_before`, `enabled`, and timestamps. It has `UNIQUE (business_id, minutes_before)` and database checks requiring `minutes_before` from `5` through `43200`; application policy allows no more than three rules per business. Minutes are the sole canonical unit.
+
+`notification_plans` is a provider-neutral intent ledger:
+
+- `id` (uuid, PK), `business_id`, `appointment_id`, nullable `source_outbox_id`
+- `type` (`APPOINTMENT_CREATED`, `APPOINTMENT_RESCHEDULED`, `APPOINTMENT_CANCELLED`, `APPOINTMENT_REMINDER`)
+- `scheduled_for`, nullable `reminder_offset_minutes`, global unique `idempotency_key`
+- `status` (`PENDING`, `CANCELLED`), nullable `cancelled_at`, timestamps
+- Composite tenant foreign keys bind both appointment and source outbox row to the same business. The outbox additionally has `UNIQUE (business_id, id)` exclusively to support that tenant-safe reference.
+- Checks enforce the immediate/reminder source and offset shape. Worker-facing indexes cover due pending plans, appointment reconciliation, and future per-business reminder reconciliation.
+
+Neither planning table stores recipient/contact data, raw capability tokens or URLs, provider credentials, CRM/internal notes, or delivery outcomes. Migration `0017_notification_planning.sql` creates zero historical plans and does not modify appointments, events, customers, or tokens.
+
 ---
 
 ## 4. Database Triggers & Functions

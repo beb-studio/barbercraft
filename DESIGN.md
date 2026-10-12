@@ -58,3 +58,10 @@ The color palette uses tailored `oklch` or hex values to represent a clean, high
 - Amount and unit controls are visually paired, fully labeled, keyboard accessible, and at least 44px high. Zero-value meaning and unlimited horizon state are explicit rather than encoded as magic numbers.
 - Saving is an ordinary primary action. Reset is secondary. Success, validation, and stale-edit recovery use restrained live feedback without destructive styling.
 - Public booking guidance remains concise and subordinate to date/slot selection. Notice-window messages on `/randevu` preserve the appointment summary as the visual anchor.
+
+## 9. Notification Settings
+
+- `Bildirimler` follows the existing dashboard settings rhythm: one clear customer-notifications master control, subordinate transactional switches, then a compact reminder-rule editor and committed summary.
+- Master-off subsettings remain visible but visibly inactive; their values are preserved so an operator can understand and restore the intended configuration without rebuilding it.
+- Reminder amount and unit controls are paired, lossless, labeled, keyboard reachable, and constrained to three rows. Add/remove actions are explicit text controls rather than ambiguous icons.
+- Save, validation, and stale-edit feedback are restrained Turkish live messages. The UI never mentions provider brands, raw recipients, capability URLs, or implementation roadmap details.

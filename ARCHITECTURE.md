@@ -455,3 +455,18 @@ drizzle/
   - Ownership-checked success marks `PROCESSED`; failure stores only a sanitized machine code and schedules capped exponential retry. Processed and terminal events are retained rather than deleted.
 - **Provider independence**:
   - TASK 016A creates no cron process, delivery worker, provider SDK, channel selection, template, notification preference, or settings UI. Those layers consume the durable outbox in later TASK 016 phases.
+
+### 3.23 Notification Planning & Tenant Settings (TASK 016B)
+
+- **Separated configuration ownership**:
+  - `business_notification_settings` is a one-to-one tenant domain separate from `businesses`, with a master customer-notification switch and independent creation, reschedule, and cancellation preferences. A database provisioning trigger creates the compatibility-safe default row for every business, including non-UI provisioning paths.
+  - `business_notification_reminder_rules` retains at most three enabled whole-minute offsets per business. PostgreSQL constrains each offset to `5..43200` and makes the canonical minute value tenant-unique; the service enforces the V1 three-rule limit.
+  - `/dashboard/settings/notifications` is an OWNER/ADMIN-only settings route. The mutation derives its tenant from trusted membership, locks the settings row, uses `updated_at::text` as an opaque optimistic version, and writes switches, rule set, and reminder reconciliation atomically.
+- **Planning boundary**:
+  - `NotificationPlannerService` consumes only owned `PROCESSING` outbox claims. In one transaction it locks the source event, settings, and appointment, validates payload version/current schedule truth, reconciles plans, and marks the event `PROCESSED` through the existing ownership check.
+  - `notification_plans` represents intent only: `PENDING` or `CANCELLED`, a trusted schedule instant, and a deterministic global idempotency key. It has no delivery status, provider state, recipient snapshot, or raw capability.
+  - Created events make a current immediate intent plus future reminders only when the master/event preference allows it. Reschedules cancel obsolete reminders and pending creation/reschedule intents before scheduling current truth. Cancellations cancel all obsolete pending intent before optionally recording a cancellation intent.
+- **Current settings, crash-safe reconciliation**:
+  - Duplicate processing/recovered leases cannot duplicate plans because every immediate and reminder plan has a deterministic trusted key. Plan writes and source-outbox completion are atomic.
+  - Turning the master switch off cancels future pending plans without changing appointments. Turning it on rebuilds only future reminders for operational appointments; it never recreates historical confirmations, reschedules, or cancellations. Rule edits likewise reconcile only future `PENDING`/`CONFIRMED` appointments.
+  - A bounded server-only batch primitive composes the TASK 016A claim, planner, and sanitized retry path. It is callable by a future worker but starts no daemon and contacts no provider.

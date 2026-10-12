@@ -515,3 +515,18 @@
 9. Claims increment `attempt_count`. Failed work stores only a sanitized machine-safe code and uses centralized capped exponential backoff. Eight attempts is terminal; terminal and processed rows are retained.
 10. An expired non-terminal lease is automatically reclaimable. An expired final-attempt lease becomes terminal `FAILED` rather than remaining permanently `PROCESSING` or receiving a ninth attempt.
 11. TASK 016A does not send SMS, email, or WhatsApp messages and adds no cron, template editor, preferences, notification settings UI, or provider secrets.
+
+---
+
+## 22. Notification Planning & Settings Rules (TASK 016B)
+
+1. Each business has exactly one notification-settings record. The compatibility-safe defaults are customer notifications disabled, while creation/reschedule/cancellation preferences are enabled beneath that master switch. Existing tenants receive no reminder rules and no historical plans.
+2. Active tenant OWNER and ADMIN memberships may read/update notification settings; STAFF, unauthenticated visitors, and platform-only administrators may not. Tenant identity comes from trusted membership, never a browser business identifier.
+3. A business can retain no more than three reminder offsets. An offset is a unique whole positive canonical minute value from five minutes through thirty days (`43200`); alternate presentations such as 24 hours and one day are the same duplicate.
+4. A notification plan is provider-neutral intent, not a delivery attempt. It may be `PENDING` or `CANCELLED`; sent/delivered/bounced state and channels belong to a later delivery phase.
+5. Plans never persist phone, email, WhatsApp identity, customer/CRM snapshots, raw management capabilities or URLs, provider credentials, or notes. Recipient and any freshly issued capability are resolved transiently by a future delivery layer.
+6. A claimed outbox event is planned under source-event ownership. Plan changes and source event completion commit atomically, and trusted deterministic keys make crash recovery/reprocessing idempotent.
+7. Master OFF consumes events without new plans and cancels future pending plans on a settings save. Master ON creates only current/future allowed plans and rebuilds only future reminders for operational (`PENDING`/`CONFIRMED`) appointments; it never manufactures historical immediate notifications.
+8. A reschedule cancels obsolete pending created/rescheduled intent and old-schedule reminders before making current reschedule/reminder intent. A cancellation removes pending created/rescheduled/reminder intent and may create one cancellation intent when enabled. Repeated processing cannot duplicate any logical plan.
+9. Settings switches, canonical reminder-rule replacement, and future-reminder reconciliation are one transaction guarded by optimistic concurrency. A stale operator update changes nothing.
+10. TASK 016B contacts no provider, runs no cron/daemon, and implements no marketing, campaigns, customer accounts, or notification preferences.
