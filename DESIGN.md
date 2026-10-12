@@ -65,3 +65,12 @@ The color palette uses tailored `oklch` or hex values to represent a clean, high
 - Master-off subsettings remain visible but visibly inactive; their values are preserved so an operator can understand and restore the intended configuration without rebuilding it.
 - Reminder amount and unit controls are paired, lossless, labeled, keyboard reachable, and constrained to three rows. Add/remove actions are explicit text controls rather than ambiguous icons.
 - Save, validation, and stale-edit feedback are restrained Turkish live messages. The UI never mentions provider brands, raw recipients, capability URLs, or implementation roadmap details.
+
+## 10. Business Analytics Dashboard
+
+- **Light-First Operational Command Center**: Strictly avoids dark/gold clichés, heavy gradients, or generic BI clutter. Uses crisp zinc borders, subtle card elevations, and clear typographic hierarchy.
+- **Operational-First Hierarchy**: Places real-time operational context (today's totals, remaining today, completed today, next appointment) immediately below the header, before historical analytical cards.
+- **Restrained Color Palette**: Deep slate for primary actions and accents, emerald for completions, blue for customer metrics, amber for pending/remaining, and muted zinc for secondary details.
+- **Lightweight Accessible Visualizations**: Clean CSS/SVG daily volume bars with stacked completion ratios and daily date labels. Includes an accessible data table toggle for auditing and assistive technology.
+- **Non-Revenue Semantic Honesty**: Booked service value is explicitly labeled "Tamamlanan Hizmet Tutarı" with subtitle and info tooltip clarifying it represents booked service value rather than collected cash.
+- **Role Isolation**: STAFF users receive a dedicated personal agenda view without business performance or financial metrics.

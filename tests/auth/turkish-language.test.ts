@@ -11,6 +11,8 @@ import {
   getTimeBlockStatusLabel,
   formatCurrency,
   getCurrencySymbol,
+  formatPercentage,
+  getAnalyticsRangePresetLabel,
   mapAuthError,
 } from "@/lib/presentation";
 
@@ -81,6 +83,21 @@ describe("TASK 009B: Turkish Language & Presentation Standardization", () => {
       assert.equal(getCurrencySymbol("TRY"), "₺");
       assert.equal(getCurrencySymbol("EUR"), "EUR");
       assert.equal(getCurrencySymbol("USD"), "USD");
+    });
+
+    it("formats percentage rates correctly and handles null safely", () => {
+      assert.equal(formatPercentage(0.125), "%12,5");
+      assert.equal(formatPercentage(0.5), "%50");
+      assert.equal(formatPercentage(0), "%0");
+      assert.equal(formatPercentage(null), "—");
+      assert.equal(formatPercentage(undefined), "—");
+      assert.equal(formatPercentage(NaN), "—");
+    });
+
+    it("returns Turkish labels for analytics range presets", () => {
+      assert.equal(getAnalyticsRangePresetLabel("TODAY"), "Bugün");
+      assert.equal(getAnalyticsRangePresetLabel("LAST_7_DAYS"), "Son 7 Gün");
+      assert.equal(getAnalyticsRangePresetLabel("LAST_30_DAYS"), "Son 30 Gün");
     });
   });
 

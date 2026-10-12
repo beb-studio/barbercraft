@@ -307,6 +307,20 @@ Execution attempt ledger for channel-specific delivery attempts.
   - Business history index: `(business_id, created_at)`.
 - Security & Privacy: Stores strictly the normalized recipient phone number needed for dispatch and audit. NEVER stores raw capabilities, full management URLs, customer profile dumps, or internal CRM notes.
 
+### 3.16 Business Analytics Query Foundation (TASK 017A)
+
+The business analytics domain operates as a strictly read-only query layer over existing core PostgreSQL tables without requiring schema modifications or speculative indexes:
+- **Primary Access Paths**:
+  - `appointments_business_time_idx` on `(business_id, start_time, end_time)` fulfills all date-bounded range filters (`start_time >= rangeStart AND start_time < rangeEnd`) and near-term upcoming lookups.
+  - `(business_id, customer_id)` composite foreign key index resolves canonical customer joins for logical customer deduplication: `COALESCE(customers.merged_into_customer_id, appointments.customer_id)`.
+  - `(business_id, staff_id)` and `(business_id, service_id)` unique composite keys support efficient staff performance and service analytics joins.
+- **Aggregation Strategy**:
+  - Server-side conditional aggregation (`COUNT(*) FILTER (...)`) evaluates lifecycle status counts in single-pass queries.
+  - Positional grouping (`GROUP BY 1`) aggregates local calendar days, weekdays, and hours in the business's timezone (`to_char(a.start_time AT TIME ZONE tz, 'YYYY-MM-DD')`).
+- **Data Integrity & Immutability**:
+  - Analytics operations issue only `SELECT` queries. No writes, updates, locks, or side-effects are generated.
+  - Zero N+1 queries; execution time remains bounded and sub-50ms even across hundreds of historical appointments.
+
 ---
 
 ## 4. Database Triggers & Functions

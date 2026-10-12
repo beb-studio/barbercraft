@@ -493,3 +493,48 @@ drizzle/
   - Five-minute lease duration (`locked_at`, `locked_by`). Expired leases are safely recovered by subsequent worker sweeps.
   - Exponential backoff retry strategy with a maximum of 8 attempts. Permanent errors (e.g. invalid phone `RECIPIENT_UNAVAILABLE`, Netgsm permanent error codes) fail immediately without useless retries.
   - End-to-end processing pipeline: `processDueNotificationDeliveries` atomically materializes due plans, claims batches, validates pre-send state, and dispatches via the configured `SmsProvider`.
+
+### 3.25 Business Analytics & Query Foundation (TASK 017A)
+
+- **Tenant Isolation & Authorization**:
+  - Analytics data access is strictly tenant-private, restricted to active `OWNER` and `ADMIN` business memberships via server-side session resolution. `STAFF` users, unauthenticated callers, and cross-tenant operators receive no business-wide analytics authority.
+  - The browser cannot pass an authoritative `businessId`; the tenant boundary is derived exclusively from authenticated session state.
+- **Date Range & Timezone Model**:
+  - Centralized range abstraction (`getAnalyticsDateRange`) supporting fixed presets: `TODAY` (1 day), `LAST_7_DAYS` (7 days), `LAST_30_DAYS` (30 days).
+  - Half-open instant boundaries `[startInstant, endInstant)` strictly evaluated in the business's authoritative IANA timezone (`businesses.timezone`), avoiding UTC drift across midnight boundaries.
+- **Completed Service Value Semantics (NOT Revenue)**:
+  - The application lacks an integrated payment ledger; therefore, `service_price_snapshot` represents completed booked service value, NOT collected revenue.
+  - Computed exclusively for `COMPLETED` appointments. Cancelled, no-show, pending, and confirmed appointments contribute zero value.
+  - Preserves immutable historical snapshot prices without floating-point arithmetic errors and groups results by business currency.
+- **Logical Customer Uniqueness**:
+  - Customer counting integrates directly with the CRM merge architecture: `COUNT(DISTINCT COALESCE(customers.merged_into_customer_id, appointments.customer_id))`. Merged alias customers and primary profiles resolve to a single logical customer identity.
+  - New customer count evaluates customers whose very first non-cancelled business appointment occurred within the selected range; returning customers are derived as `uniqueCustomers - newCustomers`.
+- **Query Aggregation Architecture**:
+  - High-performance, bounded query design in `BusinessAnalyticsRepository`. Computes totals, daily trends, service popularity, staff performance, and busy periods using PostgreSQL server-side conditional aggregation (`FILTER`) and grouping (`GROUP BY 1`).
+  - Zero N+1 queries. Lightweight TypeScript service (`BusinessAnalyticsService`) handles DTO shaping, zero-filling empty calendar days in daily trends, safe rate calculations (returning `null` for zero denominators), and weekday/hour map completeness.
+  - Strictly read-only: no database mutations or schema migrations required; existing `(business_id, start_time, end_time)` indexes satisfy analytical range queries.
+
+### 3.26 Business Dashboard & Analytics UX Architecture (TASK 017B)
+
+- **Role-Aware Routing & Strict Staff Isolation**:
+  - The `/dashboard` route enforces server-side role separation based on verified tenant membership (`membership.role`).
+  - `STAFF`: strictly isolated from business-wide analytics and financial figures. Renders `StaffDashboardView` with their personal operational agenda (`getDashboardDailyAgenda` scoped to `myProfile.id`). `BusinessAnalyticsService` is never invoked for staff.
+  - `OWNER` / `ADMIN`: renders the Business Analytics Command Center powered by `BusinessAnalyticsService.getDashboardAnalytics`.
+- **URL-Driven Range State & Server Component Composition**:
+  - Range presets (`TODAY`, `LAST_7_DAYS`, `LAST_30_DAYS`) are parsed directly from `searchParams.range`. Invalid or missing parameters safely fall back to `LAST_7_DAYS`.
+  - Interactive `RangeSelector` segmented control provides accessible tablist navigation with `min-h-[44px]` touch targets and date span captions.
+- **Component Hierarchy & Information Architecture**:
+  1. **Workspace Header**: Contextual greeting, role badge, localized business date, and primary actions ("Yeni Randevu", "Ajandaya Git").
+  2. **RangeSelector**: Accessible segmented control allowing 1-day, 7-day, and 30-day views.
+  3. **TodayOperationalStrip**: Real-time operational cards (today's total, remaining today, completed today, and Next Appointment card with calm empty state).
+  4. **KpiMetricCards**: 6 restrained KPI cards (Total Appointments, Completed Appointments, Unique Customers, Completed Service Value, Cancellation Rate, No-Show Rate).
+  5. **DailyTrendChart**: Lightweight CSS/SVG bar chart visualizing daily appointment volume and completed services, with interactive tooltips and an accessible data table view toggle.
+  6. **TopServicesCard**: Top 5 services ranked by volume, completed counts, completed service values, and relative popularity bars.
+  7. **StaffWorkloadCard**: Strictly neutral workload distribution and completed values without salary or commission terminology.
+  8. **BusyPeriodsCard**: Weekday (Pazartesi–Pazar) and peak hourly density breakdowns with proportional bars.
+  9. **CustomerSummaryCard**: Customer acquisition mix (new vs. returning) and upcoming booking forecast (tomorrow, next 7 days).
+  10. **Today's Appointments Agenda Stream**: Desktop table and mobile card list providing immediate daily operational management.
+- **Accessibility, Number Formatting & Semantic Integrity**:
+  - Booked service value is strictly labeled "Tamamlanan Hizmet Tutarı" with explicit helper text: *"Tamamlanan randevuların kayıtlı hizmet tutarıdır; tahsilat verisi değildir."* Prohibits "Ciro", "Gelir", "Tahsilat", "Net Gelir", "Revenue", and "Kâr".
+  - Rate formatting (`formatPercentage`) safely formats decimal ratios to `%12,5` and returns `"—"` for zero denominators or nulls.
+  - Meets mobile-first 390px baseline, touch targets >= 44px, and Turkish language policy.
