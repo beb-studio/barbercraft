@@ -499,3 +499,19 @@
 10. Public management read access remains available when a notice window closes. The UI may explain that online cancellation or rescheduling has ended without exposing internal policy codes.
 11. Manual/internal booking and authenticated internal rescheduling remain outside these public-customer policy restrictions.
 12. Onboarding remains unchanged, and TASK 015 introduces no notification, customer-account, billing, loyalty, or marketing behavior.
+
+---
+
+## 21. Appointment Notification Outbox Rules (TASK 016A)
+
+1. A committed appointment creation, actual date/time reschedule, or transition into `CANCELLED` must have exactly one matching durable outbox event committed in the same PostgreSQL transaction.
+2. If event insertion fails, the appointment mutation rolls back. If the appointment mutation fails or is a no-op, no event is inserted. No external delivery provider may participate in the appointment transaction.
+3. The only V1 event types are `APPOINTMENT_CREATED`, `APPOINTMENT_RESCHEDULED`, and `APPOINTMENT_CANCELLED`. `COMPLETED` and `NO_SHOW` do not create notification events.
+4. Payload version 1 contains only historically necessary schedule/status facts. It must not contain a raw management token, capability URL, appointment/customer notes, CRM history, merge lineage, auth/session data, provider credentials, or arbitrary entity dumps.
+5. Recipient phone/email/channel data is not snapshotted in this provider-neutral event. A later authorized delivery planner resolves a recipient under the notification rules current at planning time.
+6. Creation and cancellation are lifetime-idempotent per appointment. Reschedule idempotency includes trusted locked prior-version and old/new schedule facts so repeated stale/no-op submissions cannot duplicate an event while separate legitimate schedule changes remain distinct.
+7. Outbox rows are tenant-bound through `(business_id, appointment_id)`. Cross-tenant event relationships are rejected by PostgreSQL.
+8. Worker claims use server time, bounded batch sizes, `FOR UPDATE SKIP LOCKED`, exclusive worker ownership, and a five-minute lease. Two workers cannot own one active event.
+9. Claims increment `attempt_count`. Failed work stores only a sanitized machine-safe code and uses centralized capped exponential backoff. Eight attempts is terminal; terminal and processed rows are retained.
+10. An expired non-terminal lease is automatically reclaimable. An expired final-attempt lease becomes terminal `FAILED` rather than remaining permanently `PROCESSING` or receiving a ninth attempt.
+11. TASK 016A does not send SMS, email, or WhatsApp messages and adds no cron, template editor, preferences, notification settings UI, or provider secrets.

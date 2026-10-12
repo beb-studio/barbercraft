@@ -438,3 +438,20 @@ drizzle/
   - Public booking date controls use the inclusive business-local maximum date and show concise human-readable lead/horizon guidance while server availability remains authoritative.
   - `/randevu` keeps read access and explains when an otherwise-operational appointment is outside the current online cancellation/reschedule notice window. Manual booking and internal rescheduling remain exempt.
   - Onboarding is unchanged; compatibility defaults remain sufficient until an authorized operator chooses to customize policy.
+
+### 3.22 Durable Notification Outbox (TASK 016A)
+
+- **Transactional event boundary**:
+  - The provider-neutral vocabulary is deliberately limited to `APPOINTMENT_CREATED`, `APPOINTMENT_RESCHEDULED`, and `APPOINTMENT_CANCELLED`. `COMPLETED` and `NO_SHOW` remain ordinary lifecycle mutations and emit no customer-notification intent in V1.
+  - Every authoritative specific-staff, `Fark Etmez`, and manual creation inserts its event after the appointment row and before transaction commit. Internal/public rescheduling and internal/public cancellation insert their event after the actual mutation in the same existing staff/appointment-locked transaction.
+  - Appointment success and event durability are one atomic outcome: either both commit or both roll back. External provider calls are forbidden in this transaction.
+- **Versioned, minimal history**:
+  - `payload_version = 1` payloads retain only event-time status and schedule facts. Reschedule stores old/new start and end instants; cancellation stores the scheduled interval and prior status.
+  - Payloads never contain raw appointment capabilities, capability URLs, provider credentials, notes, CRM data, merge lineage, or arbitrary ORM records. Recipient identity/contact is intentionally resolved later by a delivery planner under then-current rules.
+  - Deterministic SHA-256 idempotency keys use the trusted tenant/appointment mutation identity. Creation and cancellation have one lifetime key; each reschedule includes the exact locked prior appointment version plus old/new schedule, so legitimate later reschedules remain distinct.
+- **Worker-safe lease model**:
+  - Future workers call one server-only claim primitive using `FOR UPDATE SKIP LOCKED`. A claim changes the event to `PROCESSING`, records worker/lease metadata, and increments the bounded attempt counter.
+  - A five-minute centralized lease permits crash recovery. Stale work below the maximum is claimable; a stale final-attempt lease is normalized to retained terminal `FAILED` state.
+  - Ownership-checked success marks `PROCESSED`; failure stores only a sanitized machine code and schedules capped exponential retry. Processed and terminal events are retained rather than deleted.
+- **Provider independence**:
+  - TASK 016A creates no cron process, delivery worker, provider SDK, channel selection, template, notification preference, or settings UI. Those layers consume the durable outbox in later TASK 016 phases.

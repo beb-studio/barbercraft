@@ -161,6 +161,7 @@ export const AppointmentAccessRepository = {
     startTime: Date;
     endTime: Date;
     serviceDurationSnapshot: number;
+    updatedAtVersion: string;
   } | null> {
     const result = await executor.execute(sql`
       SELECT
@@ -171,6 +172,7 @@ export const AppointmentAccessRepository = {
         start_time,
         end_time,
         service_duration_snapshot
+        , updated_at::text AS updated_at_version
       FROM appointments
       WHERE business_id = ${businessId} AND id = ${appointmentId}
       FOR UPDATE
@@ -184,6 +186,7 @@ export const AppointmentAccessRepository = {
           start_time: Date;
           end_time: Date;
           service_duration_snapshot: number;
+          updated_at_version: string;
         }
       | undefined;
 
@@ -202,6 +205,7 @@ export const AppointmentAccessRepository = {
               ? row.end_time
               : new Date(row.end_time),
           serviceDurationSnapshot: row.service_duration_snapshot,
+          updatedAtVersion: row.updated_at_version,
         }
       : null;
   },

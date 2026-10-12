@@ -21,6 +21,7 @@ import {
   getStaffAvailability,
   isStaffPublicSchedulingEligible,
 } from "@/services/availability.service";
+import { NotificationOutboxService } from "@/services/notification-outbox.service";
 
 export const APPOINTMENT_ACCESS_POST_APPOINTMENT_GRACE_MS =
   24 * 60 * 60 * 1000;
@@ -353,6 +354,13 @@ export const AppointmentAccessService = {
           target.appointmentId
         );
         if (!changed) return { outcome: "INVALID_CAPABILITY" } as const;
+        await NotificationOutboxService.emitAppointmentCancelled(tx, {
+          businessId: target.businessId,
+          appointmentId: target.appointmentId,
+          startAt: appointment.startTime,
+          endAt: appointment.endTime,
+          previousStatus: appointment.status,
+        });
       } else if (decision.reason !== "ALREADY_CANCELLED") {
         return {
           outcome: "NOT_CANCELLABLE",
@@ -647,6 +655,17 @@ export const AppointmentAccessService = {
           newEndTime
         );
       if (!updated) return { outcome: "INVALID_CAPABILITY" } as const;
+
+      await NotificationOutboxService.emitAppointmentRescheduled(tx, {
+        businessId: target.businessId,
+        appointmentId: appointment.id,
+        previousVersion: appointment.updatedAtVersion,
+        oldStartAt: appointment.startTime,
+        oldEndAt: appointment.endTime,
+        newStartAt: requestedStart,
+        newEndAt: newEndTime,
+        status: appointment.status,
+      });
 
       await AppointmentAccessService.refreshExpirationAfterReschedule(tx, {
         businessId: target.businessId,

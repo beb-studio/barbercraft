@@ -109,6 +109,7 @@ describe("Appointment Rescheduling", () => {
   });
 
   beforeEach(async () => {
+    await db.delete(schema.notificationOutbox);
     await db.delete(schema.appointments);
     await db.delete(schema.timeBlocks);
 

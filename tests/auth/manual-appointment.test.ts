@@ -102,6 +102,7 @@ describe("Internal Manual Appointment Creation (TASK 008C.2)", () => {
   });
 
   beforeEach(async () => {
+    await db.delete(schema.notificationOutbox);
     await db.delete(schema.appointments);
     await db.delete(schema.customers);
   });

@@ -232,6 +232,30 @@ Appointment-scoped bearer capabilities for accountless public management access.
 - Public rescheduling policy: token lookup remains hash-only and tenant-bound. Successful rescheduling creates no replacement token, revokes no token, and changes no token metadata except the appointment-wide expiry refresh.
 - Migration policy: migration `0014_appointment_access_tokens.sql` creates no token rows and does not modify appointments or customers.
 
+### 3.13 `notification_outbox`
+
+Durable, provider-neutral appointment notification intents.
+
+- `id` (uuid, PK, default `gen_random_uuid()`)
+- `business_id`, `appointment_id` (uuid, NOT NULL)
+- `event_type` (`APPOINTMENT_CREATED`, `APPOINTMENT_RESCHEDULED`, `APPOINTMENT_CANCELLED`)
+- `payload_version` (integer, NOT NULL, default 1) and `payload` (jsonb object, NOT NULL)
+- `idempotency_key` (text, globally UNIQUE, 64-character deterministic SHA-256 hex)
+- `status` (`PENDING`, `PROCESSING`, `PROCESSED`, `FAILED`; default `PENDING`)
+- `available_at`, `locked_at`, `processed_at`, `created_at`, `updated_at` (timestamptz)
+- `attempt_count` (integer, default 0, constrained to `0..8`)
+- `locked_by` (text, nullable) and `last_error_code` (sanitized text, nullable, at most 64 characters)
+- Composite FK `(business_id, appointment_id) -> appointments(business_id, id)` ON DELETE RESTRICT.
+- State checks require lock owner/time exactly for `PROCESSING` and `processed_at` exactly for `PROCESSED`. Payload must be a JSON object and payload version must be positive.
+- Indexes:
+  - unique idempotency lookup supplied by `idempotency_key`
+  - partial claim index on `(available_at, created_at, id)` for `PENDING`/`FAILED`
+  - partial stale-lease index on `locked_at` for `PROCESSING`
+  - appointment event history index on `(business_id, appointment_id, created_at)`
+- Claiming uses `FOR UPDATE SKIP LOCKED`; `available_at` and a centralized five-minute lease use server-authoritative instants. Attempt-based retry starts at one minute, doubles to a six-hour cap, and stops after eight claims.
+- Events and appointments commit atomically. Migration `0016_notification_outbox.sql` creates no retroactive events and modifies no appointment, token, customer, or CRM history.
+- Rows are retained after processing or terminal failure. TASK 016A defines no physical retention cleanup.
+
 ---
 
 ## 4. Database Triggers & Functions
@@ -241,3 +265,4 @@ Appointment-scoped bearer capabilities for accountless public management access.
 4. `is_valid_timezone(tz text)`: Helper function that tests whether a timezone string is valid in PostgreSQL.
 5. `customer_phone_comparison_key(text)` and `sync_customer_phone_comparison_key()`: Preserve application-equivalent comparison-key semantics during backfill and direct server-side writes.
 6. `enforce_customer_merge_one_hop()`: Deferred constraint trigger that rejects aliases targeting aliases and canonical rows that still have inbound aliases when they become aliases.
+7. `set_notification_outbox_updated_at`: Applies the shared `set_updated_at()` function to every outbox state/lease mutation.

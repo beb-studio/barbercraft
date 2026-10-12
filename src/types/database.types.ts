@@ -446,6 +446,71 @@ export type Database = {
           },
         ];
       };
+      notification_outbox: {
+        Row: {
+          appointment_id: string;
+          attempt_count: number;
+          available_at: string;
+          business_id: string;
+          created_at: string;
+          event_type: Database["public"]["Enums"]["appointment_notification_event_type"];
+          id: string;
+          idempotency_key: string;
+          last_error_code: string | null;
+          locked_at: string | null;
+          locked_by: string | null;
+          payload: NonNullable<Json>;
+          payload_version: number;
+          processed_at: string | null;
+          status: Database["public"]["Enums"]["notification_outbox_status"];
+          updated_at: string;
+        };
+        Insert: {
+          appointment_id: string;
+          attempt_count?: number;
+          available_at?: string;
+          business_id: string;
+          created_at?: string;
+          event_type: Database["public"]["Enums"]["appointment_notification_event_type"];
+          id?: string;
+          idempotency_key: string;
+          last_error_code?: string | null;
+          locked_at?: string | null;
+          locked_by?: string | null;
+          payload: NonNullable<Json>;
+          payload_version?: number;
+          processed_at?: string | null;
+          status?: Database["public"]["Enums"]["notification_outbox_status"];
+          updated_at?: string;
+        };
+        Update: {
+          appointment_id?: string;
+          attempt_count?: number;
+          available_at?: string;
+          business_id?: string;
+          created_at?: string;
+          event_type?: Database["public"]["Enums"]["appointment_notification_event_type"];
+          id?: string;
+          idempotency_key?: string;
+          last_error_code?: string | null;
+          locked_at?: string | null;
+          locked_by?: string | null;
+          payload?: NonNullable<Json>;
+          payload_version?: number;
+          processed_at?: string | null;
+          status?: Database["public"]["Enums"]["notification_outbox_status"];
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "notification_outbox_appointment_fkey";
+            columns: ["business_id", "appointment_id"];
+            isOneToOne: false;
+            referencedRelation: "appointments";
+            referencedColumns: ["business_id", "id"];
+          },
+        ];
+      };
       platform_admin_audit_logs: {
         Row: {
           action: string;
@@ -874,9 +939,14 @@ export type Database = {
       is_valid_timezone: { Args: { tz: string }; Returns: boolean };
     };
     Enums: {
+      appointment_notification_event_type:
+        | "APPOINTMENT_CREATED"
+        | "APPOINTMENT_RESCHEDULED"
+        | "APPOINTMENT_CANCELLED";
       appointment_source: "PUBLIC_WEB" | "MANUAL_ADMIN" | "MANUAL_STAFF";
       appointment_status: "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED" | "NO_SHOW";
       business_member_role: "OWNER" | "ADMIN" | "STAFF";
+      notification_outbox_status: "PENDING" | "PROCESSING" | "PROCESSED" | "FAILED";
       platform_admin_role: "SUPER_ADMIN" | "ADMIN";
       time_block_type: "TIME_OFF" | "BREAK" | "BLOCKED";
     };
@@ -994,9 +1064,15 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      appointment_notification_event_type: [
+        "APPOINTMENT_CREATED",
+        "APPOINTMENT_RESCHEDULED",
+        "APPOINTMENT_CANCELLED",
+      ],
       appointment_source: ["PUBLIC_WEB", "MANUAL_ADMIN", "MANUAL_STAFF"],
       appointment_status: ["PENDING", "CONFIRMED", "CANCELLED", "COMPLETED", "NO_SHOW"],
       business_member_role: ["OWNER", "ADMIN", "STAFF"],
+      notification_outbox_status: ["PENDING", "PROCESSING", "PROCESSED", "FAILED"],
       platform_admin_role: ["SUPER_ADMIN", "ADMIN"],
       time_block_type: ["TIME_OFF", "BREAK", "BLOCKED"],
     },

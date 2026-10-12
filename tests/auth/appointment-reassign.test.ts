@@ -107,6 +107,7 @@ describe("Appointment Reassignment (TASK 008C.3)", () => {
   let testApptUpdatedAt: string;
 
   beforeEach(async () => {
+    await db.delete(schema.notificationOutbox);
     await db.delete(schema.appointments);
 
     // Provide an initial appointment on staff1
