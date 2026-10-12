@@ -493,3 +493,23 @@ drizzle/
   - Five-minute lease duration (`locked_at`, `locked_by`). Expired leases are safely recovered by subsequent worker sweeps.
   - Exponential backoff retry strategy with a maximum of 8 attempts. Permanent errors (e.g. invalid phone `RECIPIENT_UNAVAILABLE`, Netgsm permanent error codes) fail immediately without useless retries.
   - End-to-end processing pipeline: `processDueNotificationDeliveries` atomically materializes due plans, claims batches, validates pre-send state, and dispatches via the configured `SmsProvider`.
+
+### 3.25 Business Analytics & Query Foundation (TASK 017A)
+
+- **Tenant Isolation & Authorization**:
+  - Analytics data access is strictly tenant-private, restricted to active `OWNER` and `ADMIN` business memberships via server-side session resolution. `STAFF` users, unauthenticated callers, and cross-tenant operators receive no business-wide analytics authority.
+  - The browser cannot pass an authoritative `businessId`; the tenant boundary is derived exclusively from authenticated session state.
+- **Date Range & Timezone Model**:
+  - Centralized range abstraction (`getAnalyticsDateRange`) supporting fixed presets: `TODAY` (1 day), `LAST_7_DAYS` (7 days), `LAST_30_DAYS` (30 days).
+  - Half-open instant boundaries `[startInstant, endInstant)` strictly evaluated in the business's authoritative IANA timezone (`businesses.timezone`), avoiding UTC drift across midnight boundaries.
+- **Completed Service Value Semantics (NOT Revenue)**:
+  - The application lacks an integrated payment ledger; therefore, `service_price_snapshot` represents completed booked service value, NOT collected revenue.
+  - Computed exclusively for `COMPLETED` appointments. Cancelled, no-show, pending, and confirmed appointments contribute zero value.
+  - Preserves immutable historical snapshot prices without floating-point arithmetic errors and groups results by business currency.
+- **Logical Customer Uniqueness**:
+  - Customer counting integrates directly with the CRM merge architecture: `COUNT(DISTINCT COALESCE(customers.merged_into_customer_id, appointments.customer_id))`. Merged alias customers and primary profiles resolve to a single logical customer identity.
+  - New customer count evaluates customers whose very first non-cancelled business appointment occurred within the selected range; returning customers are derived as `uniqueCustomers - newCustomers`.
+- **Query Aggregation Architecture**:
+  - High-performance, bounded query design in `BusinessAnalyticsRepository`. Computes totals, daily trends, service popularity, staff performance, and busy periods using PostgreSQL server-side conditional aggregation (`FILTER`) and grouping (`GROUP BY 1`).
+  - Zero N+1 queries. Lightweight TypeScript service (`BusinessAnalyticsService`) handles DTO shaping, zero-filling empty calendar days in daily trends, safe rate calculations (returning `null` for zero denominators), and weekday/hour map completeness.
+  - Strictly read-only: no database mutations or schema migrations required; existing `(business_id, start_time, end_time)` indexes satisfy analytical range queries.
