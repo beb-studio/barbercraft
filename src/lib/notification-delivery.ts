@@ -11,6 +11,38 @@ export const NOTIFICATION_DELIVERY_BASE_RETRY_MS = 60_000;
 export const NOTIFICATION_DELIVERY_MAX_RETRY_MS = 6 * 60 * 60_000;
 export const NOTIFICATION_DELIVERY_MAX_BATCH_SIZE = 100;
 
+export const PERMANENT_DELIVERY_ERROR_CODES = [
+  "RECIPIENT_UNAVAILABLE",
+  "NETGSM_20",
+  "NETGSM_30",
+  "NETGSM_40",
+  "NETGSM_70",
+  "MALFORMED_RESPONSE",
+] as const;
+
+export function isDeliveryTerminalFailed(
+  status: string,
+  attemptCount: number,
+  lastErrorCode?: string | null
+): boolean {
+  if (status !== "FAILED") return false;
+  if (attemptCount >= NOTIFICATION_DELIVERY_MAX_ATTEMPTS) return true;
+  if (lastErrorCode && (PERMANENT_DELIVERY_ERROR_CODES as readonly string[]).includes(lastErrorCode)) {
+    return true;
+  }
+  return false;
+}
+
+export function isDeliveryRetryableFailed(
+  status: string,
+  attemptCount: number,
+  lastErrorCode?: string | null
+): boolean {
+  if (status !== "FAILED") return false;
+  return !isDeliveryTerminalFailed(status, attemptCount, lastErrorCode);
+}
+
+
 export interface ClaimedNotificationDelivery {
   id: string;
   businessId: string;

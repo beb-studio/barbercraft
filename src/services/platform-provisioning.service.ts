@@ -93,19 +93,34 @@ export class PlatformProvisioningService {
         return newBusiness;
       });
 
-      // 3. Log the provisioning action
+      // 3. Log the provisioning actions (BUSINESS_CREATED and OWNER_PROVISIONED)
       await PlatformAdminRepository.insertAuditLog({
         platformAdminId,
         actorUserId,
-        action: "PROVISION_BUSINESS",
+        action: "BUSINESS_CREATED",
         targetType: "business",
         targetId: business.id,
         metadata: {
           slug,
+          name,
+          timezone,
+          currency,
+        },
+      });
+
+      await PlatformAdminRepository.insertAuditLog({
+        platformAdminId,
+        actorUserId,
+        action: "OWNER_PROVISIONED",
+        targetType: "user",
+        targetId: userId!,
+        metadata: {
+          businessId: business.id,
           ownerEmail,
           isNewOwner: createdNewUser,
         },
       });
+
 
       return {
         success: true,

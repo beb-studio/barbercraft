@@ -654,3 +654,85 @@
    - Services assigned to staff are presented with service name and duration in minutes only. Zero prices and zero edit buttons are displayed.
 7. **Role-Scoped Dashboard Navigation**:
    - `STAFF` users receive an uncluttered, focused operational interface. Management routes ("Hizmetler", "Personel", "Müşteriler", "Ayarlar") are hidden from desktop sidebar, mobile bottom navigation, and top breadcrumbs.
+
+---
+
+## 28. Platform Operations Rules (TASK 019A)
+
+1. **Authorization & Role Separation**:
+   - Access to platform operations actions and services is strictly restricted to active `SUPER_ADMIN` and `ADMIN` records in `platform_users`.
+   - Tenant members (even business `OWNER`s or `ADMIN`s), staff members, customers, and unauthenticated sessions receive no platform administrative authority and are rejected with typed `ForbiddenError` or `UnauthorizedError`.
+2. **Customer Privacy Boundary & Zero PII Exposure**:
+   - Platform operations read models (`PlatformOperationsSummary`, `PlatformBusinessOperationsSummary`, `PlatformBusinessOperationsDetail`) must NEVER disclose customer personal identifiable information (`firstName`, `lastName`, `phone`, `email`).
+   - Customer CRM notes, customer merge histories, duplicate candidate records, and customer directories are completely inaccessible to platform operators.
+   - Internal appointment notes (`notes`), raw appointment capability tokens, and capability URLs are strictly excluded from platform models.
+   - Notification failure views disclose only sanitized operational metadata (`failureReason`, channel, timestamps); notification message bodies and SMS text content are strictly excluded.
+   - Financial totals and price snapshots (`service_price_snapshot`) are excluded from platform operations.
+3. **Strict No-Impersonation Policy**:
+   - Platform operators cannot impersonate tenant users ("login as owner", "view as customer", or token forgery are architecturally prohibited).
+   - Platform mutations cannot bypass tenant-level validation or modify appointment records directly.
+4. **Deterministic & Explainable Business Health**:
+   - Business health status must be one of `HEALTHY`, `ATTENTION`, or `SUSPENDED`.
+   - Health status must be computed using deterministic, rule-based criteria with an explicit array of human-readable reason strings (`reasons: string[]`). Opaque scores or probabilistic AI algorithms are strictly barred.
+   - Suspension: If `active = false`, status is `SUSPENDED` with reason `"İşletme askıya alınmış"`.
+   - Attention: If active, triggers if:
+     - No active owners (`noActiveOwner`: `"Aktif işletme sahibi bulunmuyor"`)
+     - No active staff profiles (`noActiveStaff`: `"Aktif personel bulunmuyor"`)
+     - Terminal outbox failures > 0 (`terminalOutboxFailures`: `"N adet başarısız bildirim kuyruğu kaydı var"`)
+     - Terminal delivery failures > 0 (`terminalDeliveryFailures`: `"N adet başarısız SMS teslimat kaydı var"`)
+     - Inactive for > 30 days (`inactiveThirtyDays`: `"Son 30 gündür operasyonel aktivite bulunmuyor"`)
+   - Healthy: Active business satisfying all operational criteria with zero terminal failures and recent activity.
+5. **Business Lifecycle Mutations (Suspend / Reactivate)**:
+   - Suspension or reactivation requires a non-empty operator reason string (minimum 5 characters).
+   - Suspension toggles `businesses.active = false`. It NEVER deletes tenant records, staff profiles, services, customers, or appointments.
+   - Suspended businesses immediately block public booking (`findPublicBusinessBySlug` returns `null` or inactive status) and internal bookings.
+   - Reactivation toggles `businesses.active = true` and restores normal tenant operations.
+   - Every status mutation is executed with transactional `SELECT ... FOR UPDATE` row locking and appends an immutable audit record to `platform_audit_logs`.
+6. **Notification Requeue Operations**:
+   - Platform operators may requeue terminal failed notification outbox events (`requeueTerminalOutboxEvent`) and deliveries (`requeueTerminalDelivery`).
+   - Requeueing resets status to `PENDING`, resets lease state, and increments/resets retry attempts to allow background workers to process them.
+   - Delivery rows with status `SENT` CANNOT be requeued under any circumstances. Attempting to requeue a `SENT` delivery rejects with `CannotRequeueSentDeliveryError` to prevent duplicate SMS transmissions.
+   - Every requeue action appends an immutable audit record to `platform_audit_logs`.
+7. **Immutable Platform Audit Logging**:
+   - All platform operator mutations (`BUSINESS_SUSPENDED`, `BUSINESS_REACTIVATED`, `NOTIFICATION_OUTBOX_REQUEUED`, `NOTIFICATION_DELIVERY_REQUEUED`, `BUSINESS_CREATED`, `OWNER_PROVISIONED`) write immutable log entries to `platform_audit_logs` containing `actor_platform_user_id`, `business_id`, `action`, `details` (JSON), and `created_at`.
+   - Audit logs cannot be modified, updated, or deleted through the application.
+
+---
+
+## 29. Platform Operations Console UX Rules (TASK 019B)
+
+1. **Platform Route Guarding & Context Isolation**:
+   - `/platform`, `/platform/businesses`, and `/platform/businesses/[businessId]` are accessible exclusively to authenticated `SUPER_ADMIN` and `ADMIN` users.
+   - Non-platform users attempting to access `/platform` receive redirect or `ForbiddenError`.
+   - Platform admin login flows must utilize `/login?returnTo=/platform` to prevent redirection to `/dashboard` for admins without tenant business memberships.
+2. **Deterministic Health Badge & Active Business Semantics**:
+   - Health status is rendered with consistent visual badges:
+     - `Sağlıklı` (emerald badge)
+     - `Dikkat Gerekiyor` (amber badge)
+     - `Askıya Alınmış` (rose/red badge)
+   - When status is `Dikkat Gerekiyor` or `Askıya Alınmış`, the UI renders the explicit Turkish explanation reasons (`BUSINESS_HEALTH_REASON_LABELS`).
+   - "Aktif İşletme" (`businesses.active = true`) işletmenin platform tarafından askıya alınmadığını ifade eder; tüm aktif işletmelerin online randevu kabul ettiği anlamına gelmez çünkü işletme kendi randevu ayarlarıyla randevu alımını bağımsız olarak devre dışı bırakmış olabilir.
+3. **Controlled Recovery Flow (Requeue Guarding & Delivery Retry Uncertainty)**:
+   - Operators may requeue only terminal failed notification outbox events and deliveries.
+   - Requeue actions launch an explicit confirmation modal dialog (`AlertDialog`).
+   - The confirmation copy must truthfully state: *"Bu işlem kalıcı başarısız olmuş kaydı tekrar işlenmek üzere bildirim dış kutusuna / teslimat kuyruğuna alır. Randevu veya müşteri durumu değişmez."*
+   - For delivery recovery, the dialog explicitly warns: *"Yeniden kuyruğa alma işlemi yeni bir SMS gönderim denemesi oluşturabilir."*
+   - Never claim impossible "exactly-once" delivery guarantees or that duplicate delivery is impossible.
+   - Items in non-terminal states (`PENDING`, `PROCESSING`) or `SENT` deliveries strictly forbid requeuing and do not display requeue buttons.
+4. **Tenant Lifecycle Controls & Warning Transparency**:
+   - Suspend and reactivate operations must launch confirmation modal dialogs.
+   - The operator must provide a written reason of at least 5 characters.
+   - The suspension modal truthfully warns: *"İşletme askıya alındığında yeni herkese açık randevu oluşturulamaz. Mevcut randevular ve veriler korunur. Mevcut işletme kullanıcılarının panel erişimi bu işlemle otomatik olarak kaldırılmaz."*
+   - The reactivation modal truthfully explains: *"İşletmeyi yeniden aktifleştirmek, işletmenin herkese açık randevu erişilebilirliğini mevcut işletme ayarlarına göre tekrar kullanılabilir hale getirir. Mevcut veriler ve iç operasyon kayıtları değişmez."* (Does not imply dashboard access was previously blocked, users need to sign back in, or internal operations were stopped).
+5. **Zero Customer PII & Zero Financial Data Disclosure**:
+   - Platform console tables, cards, dialogs, and summaries must NEVER render customer names, phone numbers, email addresses, CRM notes, internal appointment notes, or raw SMS message contents.
+   - Operational rosters show only business owners and staff members.
+   - Platform views must strictly contain zero financial metrics (no ciro, revenue, price snapshots, or GMV).
+6. **Strict Zero Impersonation Policy**:
+   - The platform console must not provide any "Giriş Yap", "İşletmeye Geç", or "Müşteri Olarak Gör" affordances.
+7. **Responsive Presentation & 390px Baseline**:
+   - The entire platform operations console must adapt seamlessly from 390px mobile viewports to desktop.
+   - On mobile viewports ($< md$), tabular tenant listings collapse into structured operational cards without horizontal scroll or clipping.
+   - Interactive buttons and inputs must meet the $\ge 44$px touch target requirement.
+8. **Turkish Language Policy**:
+   - All user-facing UI labels, page titles, table headers, filter options, badge text, modal prompts, confirmation messages, empty states, and error alerts must be in Turkish.

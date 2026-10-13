@@ -582,3 +582,64 @@ drizzle/
   - In `DashboardShell` and `MobileNav`, navigation is strictly role-scoped:
     - `STAFF`: Desktop sidebar renders "Programım", "Ajanda", "Yeni Randevu"; mobile bottom nav renders "Bugün", "Ajanda", "Yeni Randevu". Management routes (Services, Staff, Customers, Settings) are completely hidden.
     - `OWNER` / `ADMIN`: Retains full administrative navigation and business analytics command center with zero regression.
+
+### 3.29 Platform Operations Foundation (TASK 019A)
+
+- **Authorization Model & Strict Role Separation**:
+  - Platform operations are strictly guarded by `requirePlatformAdmin` and `requirePlatformAdminWithUser`.
+  - Only authenticated sessions mapped to active records in `platform_users` with role `SUPER_ADMIN` or `ADMIN` are authorized.
+  - Tenant users (even business `OWNER`s), staff members, customers, and unauthenticated callers are strictly barred with typed `ForbiddenError` / `UnauthorizedError`.
+- **Customer Privacy & Non-Impersonation Boundary**:
+  - Platform operator read models (`PlatformOperationsSummary`, `PlatformBusinessOperationsSummary`, `PlatformBusinessOperationsDetail`) enforce strict data boundaries:
+    - Zero customer PII: no customer names, phones, emails, or directory listings.
+    - Zero CRM exposure: no customer internal notes, duplicate candidates, or merge lineages.
+    - Zero appointment notes or capability tokens: no internal appointment notes, raw capability tokens, or capability URLs.
+    - Zero notification body exposure: outbox/delivery failure views omit raw notification content or SMS bodies.
+    - Zero financial or revenue metrics: no ciro, revenue, or price snapshots.
+    - Absolute zero impersonation: "login as business owner" or "view as customer" workflows are strictly prohibited by architecture.
+- **Authoritative Read Models & Explainable Health Model**:
+  - Macro-level platform metrics (`PlatformOperationsSummary`): total, active, and suspended businesses; total business owners; total active staff profiles; total appointments and appointments last 7 days; outbox pending/failed and delivery sent/failed counts.
+  - Paginated tenant operations listing (`PlatformBusinessOperationsSummary`): includes slug, active status, creation date, operational counts, last operational activity timestamp, terminal failure counts, and deterministic health status.
+  - Explainable Tenant Health: Derived deterministically via `computeBusinessHealth` without opaque AI scoring. Returns status (`HEALTHY`, `ATTENTION`, `SUSPENDED`) alongside an explicit array of human-readable explanation strings:
+    - `SUSPENDED`: business is suspended (`active = false`).
+    - `ATTENTION`: triggers if no active owners, no active staff, terminal outbox failures > 0, terminal delivery failures > 0, or inactive for > 30 days (`lastOperationalActivityAt == null` or older than 30 days).
+    - `HEALTHY`: active business with active owner, active staff, zero terminal failures, and operational activity within 30 days.
+  - Authoritative Business Activity: `lastOperationalActivityAt` is derived from the latest timestamp among appointments (`created_at`, `updated_at`, `start_time`), outbox events, delivery records, or business creation date.
+- **Safe Lifecycle Mutations & Controlled Requeue Operators**:
+  - `suspendBusiness` / `reactivateBusiness`: Transactional with `SELECT ... FOR UPDATE` row locking. Modifies `businesses.active` without destructive deletion. Requires an explicit, non-empty reason (minimum 5 characters). Automatically writes immutable `BUSINESS_SUSPENDED` or `BUSINESS_REACTIVATED` records to `platform_audit_logs`.
+  - Notification Requeue Operations:
+    - `requeueTerminalOutboxEvent`: Resets failed outbox event status to `PENDING`, sets `next_attempt_at = now()`, appends `NOTIFICATION_OUTBOX_REQUEUED` audit log.
+    - `requeueTerminalDelivery`: Checks delivery status; if `SENT`, strictly throws `CannotRequeueSentDeliveryError`. Resets failed delivery to `PENDING`, clears lease and attempts, appends `NOTIFICATION_DELIVERY_REQUEUED` audit log.
+- **High-Performance SQL Query Architecture (Zero N+1 Overhead)**:
+  - `PlatformOperationsRepository` executes bounded, set-based queries using PostgreSQL server-side conditional aggregation:
+    - Global summary executes in 1 single aggregate query using `FILTER (WHERE ...)`.
+    - Paginated tenant operations list executes in exactly 7 constant queries regardless of page size (1 paginated tenant query + 6 batch aggregations grouped by `business_id` using `WHERE business_id IN (...) GROUP BY business_id`).
+    - Scale invariant: benchmarked against 50+ concurrent tenants with deterministic constant query count.
+
+### 3.30 Platform Operations Console Architecture & UX (TASK 019B)
+
+- **Platform Console Route Hierarchy & Presentation Architecture**:
+  - `/platform`: Platform Command Center overview. Displays high-level system metrics (`PlatformOperationsSummary`) including tenant lifecycle counts (total, active, suspended, onboarding incomplete), platform actor counts (active tenant members and staff profiles), appointment activity aggregates, and notification pipeline health (outbox and delivery retryable vs. terminal breakdown). Includes quick links to recent businesses and operational actions.
+  - `/platform/businesses`: Tenant Operations Directory. Renders a bounded, paginated list of all tenants via `PlatformOperationsService.listBusinessOperations()` with search (name/slug) and deterministic health filtering (`ALL`, `HEALTHY`, `ATTENTION`, `SUSPENDED`). Employs responsive presentation with a full data table on desktop ($\ge md$) and compact mobile operational cards on mobile viewports ($< md$, 390px baseline).
+  - `/platform/businesses/[businessId]`: Tenant Operations Detail. Structured into 8 distinct operational panels:
+    1. *Tenant Header*: Business name, slug, creation date, and status indicators.
+    2. *Operational Health Status*: Deterministic health badge (`Sağlıklı`, `Dikkat Gerekiyor`, `Askıya Alınmış`) with explicit diagnostic explanation reasons.
+    3. *Safe Operational Rosters*: Lists active business owners and staff profiles (ID, name, email, role, created date) without disclosing customer PII or staff compensation/financial details.
+    4. *Appointment Activity Aggregates*: Read-only volume counts (total, 30 days, 7 days, today) without individual appointment customer details or notes.
+    5. *Notification Health Breakdown*: Overview of notification plans, outbox events, and delivery records categorized into sent, pending, retryable failed, and terminal failed states.
+    6. *Terminal Failures & Controlled Recovery*: Bounded list of terminal notification failures with detailed error reasons, attempt counts, and one-click requeue dialogs.
+    7. *Platform Audit Timeline*: Chronological audit trail showing administrative operations (`BUSINESS_SUSPENDED`, `BUSINESS_REACTIVATED`, `NOTIFICATION_OUTBOX_REQUEUED`, etc.) with actor attribution and mandatory change reasons.
+    8. *Lifecycle Controls*: Action center providing administrative controls to suspend or reactivate the tenant.
+- **Controlled Requeue Operations Architecture**:
+  - Modal confirmation workflow implemented with `@base-ui/react/alert-dialog` primitives.
+  - Invokes `requeueTerminalOutboxEventAction` or `requeueTerminalDeliveryAction`.
+  - Enforces domain constraints: non-terminal or `SENT` deliveries are strictly non-requeueable, preventing duplicate SMS dispatch.
+  - Requeue mutations immediately call `safeRevalidatePath("/platform/businesses/[businessId]")` and `safeRevalidatePath("/platform/businesses")` to synchronize server state without full page refreshes.
+- **Tenant Lifecycle Mutation Safety**:
+  - Suspend and Reactivate modals enforce explicit operator explanation copy and require a typed reason input with a minimum of 5 characters.
+  - Truthful impact communication: Suspension halts new public booking immediately, preserves all historical tenant and appointment data, and leaves existing user sessions and internal dashboard access intact. Reactivation restores public booking accessibility according to the business's current configuration without modifying existing records or claiming internal operations were stopped.
+  - Delivery recovery copy communicates that requeueing may trigger a new SMS send attempt and avoids claiming impossible exactly-once delivery guarantees.
+- **Strict Customer Privacy & Impersonation Elimination**:
+  - Platform console routes and client components contain zero customer PII (no customer names, phone numbers, emails, addresses, CRM notes, or appointment notes).
+  - Zero impersonation capabilities: Architecture provides no "Login as Owner" or tenant switching tokens, preserving complete tenant isolation.
+  - Zero financial / revenue / GMV metrics are displayed anywhere in the platform operations views.
