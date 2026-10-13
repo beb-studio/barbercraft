@@ -736,3 +736,34 @@
    - Interactive buttons and inputs must meet the $\ge 44$px touch target requirement.
 8. **Turkish Language Policy**:
    - All user-facing UI labels, page titles, table headers, filter options, badge text, modal prompts, confirmation messages, empty states, and error alerts must be in Turkish.
+
+---
+
+## 30. Application Security Hardening Rules (TASK 020A)
+
+1. **Disabled Public Self-Registration**:
+   - Public self-registration endpoints (`/api/auth/sign-up/email`) and browser registration forms are strictly disabled (`disableSignUp: true`).
+   - Platform initial owner provisioning, staff onboarding, and development/QA bootstrapping create credentials exclusively via trusted server-side administrative primitives (`createAdministrativeUser`), bypassing public registration endpoints without globally re-enabling them.
+2. **Multi-Process Atomic Rate Limiting**:
+   - Rate limiting is enforced atomically in PostgreSQL via the `rate_limits` table (`INSERT ... ON CONFLICT (key) DO UPDATE`) returning remaining window duration, eliminating race conditions across multiple server instances.
+   - Thresholds:
+     - Public appointment booking (`createPublicAppointmentAction`): 60 requests / 10 minutes per anonymized IP.
+     - Public appointment capability access (`resolveAppointmentAccessAction`): 120 requests / 10 minutes per anonymized IP.
+     - Authentication sign-in attempts: 10 attempts / 15 minutes per anonymized identifier.
+   - Client IP addresses are anonymized via SHA-256 before hashing or indexing to respect user privacy and regulatory requirements.
+3. **Browser Security Headers & Content Security Policy (CSP)**:
+   - Next.js responses must emit strict security headers:
+     - `Content-Security-Policy`: Restricts scripts, styles, fonts, connections, and images to `'self'` and trusted origins, with `frame-ancestors 'none'`.
+     - `X-Frame-Options: DENY`: Prevents framing and clickjacking.
+     - `X-Content-Type-Options: nosniff`: Prevents MIME-type sniffing.
+     - `Referrer-Policy: strict-origin-when-cross-origin` (with `no-referrer` on capability URLs `/randevu`).
+     - `Permissions-Policy`: Explicitly disables sensitive browser features (camera, microphone, geolocation, payment).
+     - `Strict-Transport-Security`: Enforces HTTPS in production (`max-age=63072000; includeSubDomains; preload`).
+   - Sensitive authenticated operational routes (`/dashboard`, `/platform`, `/onboarding`, `/randevu`) must emit anti-caching headers (`Cache-Control: no-store, no-cache, must-revalidate, proxy-revalidate`).
+4. **Client Error Sanitization & Data Redaction**:
+   - Client-facing error messages must never expose raw database exceptions, SQLSTATE codes, table/column names, or stack traces.
+   - All client error messages displayed to users must be localized in Turkish.
+   - Server logs must scrub secrets, passwords, tokens, and database URI credentials via centralized redaction helpers.
+5. **No Customer Accounts & No Product Feature Creep**:
+   - Customers remain accountless actors authorized solely via cryptographically random capability tokens.
+   - Security hardening introduces zero new product features (no customer accounts, no billing, no new CRM features).

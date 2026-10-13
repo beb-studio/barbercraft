@@ -643,3 +643,28 @@ drizzle/
   - Platform console routes and client components contain zero customer PII (no customer names, phone numbers, emails, addresses, CRM notes, or appointment notes).
   - Zero impersonation capabilities: Architecture provides no "Login as Owner" or tenant switching tokens, preserving complete tenant isolation.
   - Zero financial / revenue / GMV metrics are displayed anywhere in the platform operations views.
+
+### 3.31 Application Security Hardening (TASK 020A)
+
+- **Administrative User Provisioning vs. Public Registration**:
+  - Better Auth is configured with `disableSignUp: true`, permanently disabling public self-registration endpoints (`/api/auth/sign-up/email`) and browser-accessible signup forms.
+  - Trusted server-side administrative user provisioning is implemented in `createAdministrativeUser` (`src/lib/auth/admin-user.ts`). It directly utilizes Better Auth's internal adapter (`internalAdapter.createUser` and `internalAdapter.linkAccount`) paired with Argon2id password hashing.
+  - This architecture permits authorized platform administrators, business onboarding workflows, and staff management to provision tenant users, while preserving complete protection against public unauthorized registration.
+- **Multi-Process Atomic Rate Limiting**:
+  - Multi-process safe, database-backed rate limiting utilizes a dedicated `rate_limits` table with PostgreSQL upsert (`INSERT ... ON CONFLICT (key) DO UPDATE`) returning remaining window duration, eliminating race conditions across multiple server instances.
+  - Rate limiting protects public appointment booking (`createPublicAppointmentAction`: 60 requests / 10 minutes), capability resolution (`resolveAppointmentAccessAction`: 120 requests / 10 minutes), and authentication sign-in attempts (`/api/auth/sign-in/email`: 10 attempts / 15 minutes).
+  - Client identifiers are SHA-256 hashed (`hashIdentifier`), and reverse proxy headers (`x-forwarded-for`, `x-real-ip`) are safely parsed, ensuring client privacy and compliance with data protection standards.
+- **Browser Security Headers & Content Security Policy (CSP)**:
+  - Configured in `next.config.ts` across all routes:
+    - `Content-Security-Policy`: Restricts scripts, styles, fonts, connections, and images to `'self'` and trusted origins, with `frame-ancestors 'none'` preventing iframe embedding.
+    - `X-Frame-Options: DENY`: Global clickjacking protection.
+    - `X-Content-Type-Options: nosniff`: Prevents MIME-sniffing attacks.
+    - `Referrer-Policy: strict-origin-when-cross-origin`: Controls referrer leakage, with `/randevu` enforcing `no-referrer` to guard capability tokens.
+    - `Permissions-Policy`: Explicitly disables sensitive browser features (camera, microphone, geolocation, payment).
+    - `Strict-Transport-Security`: Enforces HTTPS in production (`max-age=63072000; includeSubDomains; preload`).
+    - Anti-Caching Headers: Enforced on all authenticated operational routes (`/dashboard/:path*`, `/platform/:path*`, `/onboarding/:path*`, `/randevu/:path*`) via `Cache-Control: no-store, no-cache, must-revalidate, proxy-revalidate`.
+- **Sensitive Data Redaction & Client Error Sanitization**:
+  - `sanitizeClientError` (`src/lib/redact.ts`) scrubs internal database errors, SQLSTATE codes, table names, constraint details, and stack traces before returning user-facing Turkish messages.
+  - `redactSensitiveData` and `redactUrlCredentials` scrub sensitive secrets (passwords, tokens, database credentials) from application server logs.
+- **Production Environment Validation**:
+  - `assertProductionEnvironment` (`src/lib/env.ts`) performs strict startup validation, verifying required production secrets and rejecting insecure defaults and placeholders.

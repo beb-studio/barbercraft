@@ -56,7 +56,7 @@ export function hasPermission(
   role: BusinessMemberRole | null | undefined,
   permission: Permission,
 ): boolean {
-  if (!role) return false;
+  if (!role || !ROLE_PERMISSIONS[role]) return false;
   return ROLE_PERMISSIONS[role].includes(permission);
 }
 

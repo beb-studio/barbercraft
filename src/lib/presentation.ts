@@ -229,5 +229,13 @@ export function mapAuthError(error: unknown): string {
     return "Geçerli bir e-posta adresi girin.";
   }
 
+  if (
+    lower.includes("too many requests") ||
+    lower.includes("rate_limit_exceeded") ||
+    lower.includes("too_many_requests")
+  ) {
+    return "Çok fazla deneme yaptınız. Lütfen bir süre sonra tekrar deneyin.";
+  }
+
   return "İşlem başarısız oldu. Lütfen bilgilerinizi kontrol edip tekrar deneyin.";
 }

@@ -18,6 +18,13 @@
 - Business logic, RBAC assertions, and database operations must reside in dedicated server modules (`src/lib/`, `src/actions/`, `src/db/`).
 - No raw database queries or direct SQL calls directly inside React component files.
 
+### 1.4 Application Security & Hardening (TASK 020A)
+- **Public Registration Disabled**: Public signup endpoints (`/api/auth/sign-up/email`) must remain disabled. User creation is strictly restricted to trusted server-side administrative primitives (`createAdministrativeUser`).
+- **Multi-Process Rate Limiting**: All publicly accessible or sensitive endpoints must enforce PostgreSQL-backed atomic rate limiting (`rateLimit` in `src/lib/rate-limit.ts`). Client IPs must be anonymized before hashing.
+- **Client Error Sanitization**: Never return raw database errors, SQLSTATE codes, table names, or stack traces to client components or users. Use `sanitizeClientError` (`src/lib/redact.ts`) with Turkish user-facing messages.
+- **Browser Security Headers**: Comprehensive CSP, clickjacking prevention (`X-Frame-Options: DENY`), sniffing protection (`X-Content-Type-Options: nosniff`), and anti-caching headers on operational dashboards are enforced via `next.config.ts`.
+- **Production Environment Assertions**: Sensitive production configuration must be validated at application startup using `assertProductionEnvironment` (`src/lib/env.ts`).
+
 ---
 
 ## 2. Verification Commands
@@ -28,12 +35,15 @@ Run all verification scripts before declaring task completion:
 # 1. Run database tests against embedded PostgreSQL
 pnpm db:test
 
-# 2. Run ESLint check
+# 2. Run complete authentication, RBAC, domain, and security regression test suite
+pnpm auth:test
+
+# 3. Run ESLint check
 pnpm lint
 
-# 3. Run TypeScript type checker
+# 4. Run TypeScript type checker
 pnpm typecheck
 
-# 4. Run Next.js production build
+# 5. Run Next.js production build
 pnpm build
 ```

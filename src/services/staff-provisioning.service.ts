@@ -1,7 +1,7 @@
 import { db } from "@/db";
-import { users, businesses, businessMembers, staffProfiles, staffServices, services } from "@/db/schema";
+import { users, businessMembers, staffProfiles, staffServices, services } from "@/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
-import { auth } from "@/lib/auth/auth";
+import { createAdministrativeUser } from "@/lib/auth/admin-user";
 import crypto from "crypto";
 
 export interface ProvisionStaffInput {
@@ -71,35 +71,19 @@ export class StaffProvisioningService {
     if (!userId) {
       tempPassword = generateSecurePassword(16);
       try {
-        const response = await auth.api.signUpEmail({
-          body: {
-            email: normalizedEmail,
-            password: tempPassword,
-            name: name,
-          },
-          asResponse: true,
+        const newUser = await createAdministrativeUser({
+          email: normalizedEmail,
+          password: tempPassword,
+          name: name,
+          emailVerified: true,
         });
-
-        if (!response || !response.ok) {
-          throw new Error("IDENTITY_CREATION_FAILED: Failed to create user via Better Auth");
-        }
-
-        const [newUser] = await db
-          .select({ id: users.id })
-          .from(users)
-          .where(eq(users.email, normalizedEmail))
-          .limit(1);
-
-        if (!newUser) {
-          throw new Error("IDENTITY_CREATION_FAILED: User created but not found in DB");
-        }
 
         userId = newUser.id;
         createdNewUser = true;
 
         await db.update(users).set({ forcePasswordChange: true }).where(eq(users.id, userId));
       } catch (error) {
-        // Concurrency Check: If signUpEmail failed, another concurrent request might have created the identity.
+        // Concurrency Check: If user creation failed, another concurrent request might have created the identity.
         const [concurrentUser] = await db
           .select({ id: users.id })
           .from(users)

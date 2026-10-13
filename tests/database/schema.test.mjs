@@ -417,4 +417,52 @@ describe("Platform Administration Schema & Constraints", () => {
     await q(`DELETE FROM platform_admin_audit_logs WHERE action = 'TEST_ACTION'`);
     await q(`DELETE FROM platform_admins WHERE user_id IN ($1, $2)`, [U.user1, U.user2]);
   });
+
+  describe("Rate Limits Schema & Operations", () => {
+    it("supports atomic upsert and tracks count and expiry", async () => {
+      const testKey = "test:ip-123";
+      const future = new Date(Date.now() + 60000);
+
+      // Initial insert
+      const r1 = await q(
+        `INSERT INTO rate_limits (key, count, expires_at)
+         VALUES ($1, 1, $2)
+         RETURNING key, count, expires_at`,
+        [testKey, future]
+      );
+      ok(r1);
+      assert.equal(r1.rows[0].count, 1);
+
+      // Duplicate key violates PK without upsert
+      const dup = await q(
+        `INSERT INTO rate_limits (key, count, expires_at)
+         VALUES ($1, 1, $2)`,
+        [testKey, future]
+      );
+      fails(dup, UNIQUE);
+
+      // Atomic upsert updates count
+      const r2 = await q(
+        `INSERT INTO rate_limits (key, count, expires_at, created_at, updated_at)
+         VALUES ($1, 1, $2, now(), now())
+         ON CONFLICT (key) DO UPDATE
+         SET count = CASE
+             WHEN rate_limits.expires_at < now() THEN 1
+             ELSE rate_limits.count + 1
+           END,
+           expires_at = CASE
+             WHEN rate_limits.expires_at < now() THEN $2
+             ELSE rate_limits.expires_at
+           END,
+           updated_at = now()
+         RETURNING count`,
+        [testKey, future]
+      );
+      ok(r2);
+      assert.equal(r2.rows[0].count, 2);
+
+      // Cleanup
+      await q(`DELETE FROM rate_limits WHERE key = $1`, [testKey]);
+    });
+  });
 });

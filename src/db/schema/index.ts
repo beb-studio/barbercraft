@@ -13,6 +13,7 @@ export * from "./notification_planning";
 export * from "./notification_deliveries";
 export * from "./platform";
 export * from "./customer_notes";
+export * from "./rate_limits";
 
 export { users as user } from "./users";
 export { sessions as session, accounts as account, verifications as verification } from "./auth";

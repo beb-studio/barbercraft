@@ -14,10 +14,28 @@ export const auth = betterAuth({
       verification: dbSchema.verification,
     },
   }),
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  advanced: { database: { generateId: "uuid" } } as any,
+  advanced: {
+    database: { generateId: "uuid" },
+    useSecureCookies: process.env.NODE_ENV === "production",
+  },
   emailAndPassword: {
     enabled: true,
+    disableSignUp: true,
+  },
+  session: {
+    expiresIn: 60 * 60 * 24 * 7, // 7 days
+    updateAge: 60 * 60 * 24,      // 1 day
+  },
+  rateLimit: {
+    enabled: true,
+    window: 60,
+    max: 100,
+    customRules: {
+      "/sign-in/email": {
+        window: 60,
+        max: 5,
+      },
+    },
   },
   trustedOrigins: [
     ...(process.env.NODE_ENV !== "production" ? ["http://localhost:*", "http://127.0.0.1:*"] : []),

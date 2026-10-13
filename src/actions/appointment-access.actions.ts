@@ -5,6 +5,7 @@ import type {
   AppointmentRescheduleSlot,
 } from "@/services/appointment-access.service";
 import { AppointmentAccessService } from "@/services/appointment-access.service";
+import { checkRateLimit, getClientIp, hashIdentifier } from "@/lib/rate-limit";
 
 export type ResolveAppointmentAccessResult =
   | { success: true; data: AppointmentManagementView }
@@ -65,6 +66,16 @@ export async function resolveAppointmentAccessAction(
   rawToken: unknown
 ): Promise<ResolveAppointmentAccessResult> {
   try {
+    const ip = await getClientIp();
+    const rateLimit = await checkRateLimit({
+      key: `capability:resolve:${hashIdentifier(ip)}`,
+      limit: 60,
+      windowSeconds: 60,
+    });
+    if (!rateLimit.success) {
+      return { success: false };
+    }
+
     const appointment = await AppointmentAccessService.resolve(rawToken);
     return appointment
       ? { success: true, data: appointment }
@@ -78,6 +89,16 @@ export async function cancelAppointmentAccessAction(
   rawToken: unknown
 ): Promise<CancelAppointmentAccessResult> {
   try {
+    const ip = await getClientIp();
+    const rateLimit = await checkRateLimit({
+      key: `capability:mutate:${hashIdentifier(ip)}`,
+      limit: 20,
+      windowSeconds: 600,
+    });
+    if (!rateLimit.success) {
+      return { success: false, type: "INVALID_CAPABILITY" };
+    }
+
     const result = await AppointmentAccessService.cancel(rawToken);
 
     if (result.outcome === "CANCELLED") {
@@ -109,6 +130,16 @@ export async function getAppointmentRescheduleAvailabilityAction(
   localDate: unknown
 ): Promise<GetAppointmentRescheduleAvailabilityResult> {
   try {
+    const ip = await getClientIp();
+    const rateLimit = await checkRateLimit({
+      key: `capability:resolve:${hashIdentifier(ip)}`,
+      limit: 60,
+      windowSeconds: 60,
+    });
+    if (!rateLimit.success) {
+      return { success: false, type: "INVALID_CAPABILITY" };
+    }
+
     const result = await AppointmentAccessService.getRescheduleAvailability(
       rawToken,
       localDate
@@ -164,6 +195,16 @@ export async function rescheduleAppointmentAccessAction(
   requestedStartAt: unknown
 ): Promise<RescheduleAppointmentAccessResult> {
   try {
+    const ip = await getClientIp();
+    const rateLimit = await checkRateLimit({
+      key: `capability:mutate:${hashIdentifier(ip)}`,
+      limit: 20,
+      windowSeconds: 600,
+    });
+    if (!rateLimit.success) {
+      return { success: false, type: "INVALID_CAPABILITY" };
+    }
+
     const result = await AppointmentAccessService.reschedule(
       rawToken,
       requestedStartAt

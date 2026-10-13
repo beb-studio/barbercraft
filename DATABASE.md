@@ -321,6 +321,19 @@ The business analytics domain operates as a strictly read-only query layer over 
   - Analytics operations issue only `SELECT` queries. No writes, updates, locks, or side-effects are generated.
   - Zero N+1 queries; execution time remains bounded and sub-50ms even across hundreds of historical appointments.
 
+### 3.17 Multi-Process Rate Limits (TASK 020A)
+
+- Table: `rate_limits`
+- Columns:
+  - `key`: `varchar(255)` PRIMARY KEY (Anonymized action and IP identifier hash).
+  - `points`: `integer` NOT NULL DEFAULT 0 (Accumulated request points within the current time window).
+  - `expire_at`: `timestamp with time zone` NOT NULL (Window expiration instant).
+- Indexes:
+  - `rate_limits_expire_at_idx`: `(expire_at)` for efficient background cleanup of expired rate limit windows.
+- Concurrency & Atomicity:
+  - Updates occur via atomic PostgreSQL upsert (`INSERT INTO rate_limits (key, points, expire_at) VALUES (...) ON CONFLICT (key) DO UPDATE SET points = ..., expire_at = ... RETURNING ...`).
+  - Ensures multi-process safety without race conditions across multiple application server instances.
+
 ---
 
 ## 4. Database Triggers & Functions
