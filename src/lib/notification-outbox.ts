@@ -14,6 +14,15 @@ export const NOTIFICATION_OUTBOX_BASE_RETRY_MS = 60_000;
 export const NOTIFICATION_OUTBOX_MAX_RETRY_MS = 6 * 60 * 60_000;
 export const NOTIFICATION_OUTBOX_MAX_BATCH_SIZE = 100;
 
+export function isOutboxTerminalFailed(status: string, attemptCount: number): boolean {
+  return status === "FAILED" && attemptCount >= NOTIFICATION_OUTBOX_MAX_ATTEMPTS;
+}
+
+export function isOutboxRetryableFailed(status: string, attemptCount: number): boolean {
+  return status === "FAILED" && attemptCount < NOTIFICATION_OUTBOX_MAX_ATTEMPTS;
+}
+
+
 export interface AppointmentCreatedPayloadV1 {
   startAt: string;
   endAt: string;

@@ -654,3 +654,45 @@
    - Services assigned to staff are presented with service name and duration in minutes only. Zero prices and zero edit buttons are displayed.
 7. **Role-Scoped Dashboard Navigation**:
    - `STAFF` users receive an uncluttered, focused operational interface. Management routes ("Hizmetler", "Personel", "Müşteriler", "Ayarlar") are hidden from desktop sidebar, mobile bottom navigation, and top breadcrumbs.
+
+---
+
+## 28. Platform Operations Rules (TASK 019A)
+
+1. **Authorization & Role Separation**:
+   - Access to platform operations actions and services is strictly restricted to active `SUPER_ADMIN` and `ADMIN` records in `platform_users`.
+   - Tenant members (even business `OWNER`s or `ADMIN`s), staff members, customers, and unauthenticated sessions receive no platform administrative authority and are rejected with typed `ForbiddenError` or `UnauthorizedError`.
+2. **Customer Privacy Boundary & Zero PII Exposure**:
+   - Platform operations read models (`PlatformOperationsSummary`, `PlatformBusinessOperationsSummary`, `PlatformBusinessOperationsDetail`) must NEVER disclose customer personal identifiable information (`firstName`, `lastName`, `phone`, `email`).
+   - Customer CRM notes, customer merge histories, duplicate candidate records, and customer directories are completely inaccessible to platform operators.
+   - Internal appointment notes (`notes`), raw appointment capability tokens, and capability URLs are strictly excluded from platform models.
+   - Notification failure views disclose only sanitized operational metadata (`failureReason`, channel, timestamps); notification message bodies and SMS text content are strictly excluded.
+   - Financial totals and price snapshots (`service_price_snapshot`) are excluded from platform operations.
+3. **Strict No-Impersonation Policy**:
+   - Platform operators cannot impersonate tenant users ("login as owner", "view as customer", or token forgery are architecturally prohibited).
+   - Platform mutations cannot bypass tenant-level validation or modify appointment records directly.
+4. **Deterministic & Explainable Business Health**:
+   - Business health status must be one of `HEALTHY`, `ATTENTION`, or `SUSPENDED`.
+   - Health status must be computed using deterministic, rule-based criteria with an explicit array of human-readable reason strings (`reasons: string[]`). Opaque scores or probabilistic AI algorithms are strictly barred.
+   - Suspension: If `active = false`, status is `SUSPENDED` with reason `"İşletme askıya alınmış"`.
+   - Attention: If active, triggers if:
+     - No active owners (`noActiveOwner`: `"Aktif işletme sahibi bulunmuyor"`)
+     - No active staff profiles (`noActiveStaff`: `"Aktif personel bulunmuyor"`)
+     - Terminal outbox failures > 0 (`terminalOutboxFailures`: `"N adet başarısız bildirim kuyruğu kaydı var"`)
+     - Terminal delivery failures > 0 (`terminalDeliveryFailures`: `"N adet başarısız SMS teslimat kaydı var"`)
+     - Inactive for > 30 days (`inactiveThirtyDays`: `"Son 30 gündür operasyonel aktivite bulunmuyor"`)
+   - Healthy: Active business satisfying all operational criteria with zero terminal failures and recent activity.
+5. **Business Lifecycle Mutations (Suspend / Reactivate)**:
+   - Suspension or reactivation requires a non-empty operator reason string (minimum 5 characters).
+   - Suspension toggles `businesses.active = false`. It NEVER deletes tenant records, staff profiles, services, customers, or appointments.
+   - Suspended businesses immediately block public booking (`findPublicBusinessBySlug` returns `null` or inactive status) and internal bookings.
+   - Reactivation toggles `businesses.active = true` and restores normal tenant operations.
+   - Every status mutation is executed with transactional `SELECT ... FOR UPDATE` row locking and appends an immutable audit record to `platform_audit_logs`.
+6. **Notification Requeue Operations**:
+   - Platform operators may requeue terminal failed notification outbox events (`requeueTerminalOutboxEvent`) and deliveries (`requeueTerminalDelivery`).
+   - Requeueing resets status to `PENDING`, resets lease state, and increments/resets retry attempts to allow background workers to process them.
+   - Delivery rows with status `SENT` CANNOT be requeued under any circumstances. Attempting to requeue a `SENT` delivery rejects with `CannotRequeueSentDeliveryError` to prevent duplicate SMS transmissions.
+   - Every requeue action appends an immutable audit record to `platform_audit_logs`.
+7. **Immutable Platform Audit Logging**:
+   - All platform operator mutations (`BUSINESS_SUSPENDED`, `BUSINESS_REACTIVATED`, `NOTIFICATION_OUTBOX_REQUEUED`, `NOTIFICATION_DELIVERY_REQUEUED`, `BUSINESS_CREATED`, `OWNER_PROVISIONED`) write immutable log entries to `platform_audit_logs` containing `actor_platform_user_id`, `business_id`, `action`, `details` (JSON), and `created_at`.
+   - Audit logs cannot be modified, updated, or deleted through the application.

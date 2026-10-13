@@ -7,3 +7,4 @@ export * from "./customer";
 export * from "./appointment";
 export * from "./business-analytics";
 export * from "./staff-workspace";
+export * from "./platform-operations";

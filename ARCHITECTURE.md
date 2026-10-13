@@ -582,3 +582,36 @@ drizzle/
   - In `DashboardShell` and `MobileNav`, navigation is strictly role-scoped:
     - `STAFF`: Desktop sidebar renders "Programım", "Ajanda", "Yeni Randevu"; mobile bottom nav renders "Bugün", "Ajanda", "Yeni Randevu". Management routes (Services, Staff, Customers, Settings) are completely hidden.
     - `OWNER` / `ADMIN`: Retains full administrative navigation and business analytics command center with zero regression.
+
+### 3.29 Platform Operations Foundation (TASK 019A)
+
+- **Authorization Model & Strict Role Separation**:
+  - Platform operations are strictly guarded by `requirePlatformAdmin` and `requirePlatformAdminWithUser`.
+  - Only authenticated sessions mapped to active records in `platform_users` with role `SUPER_ADMIN` or `ADMIN` are authorized.
+  - Tenant users (even business `OWNER`s), staff members, customers, and unauthenticated callers are strictly barred with typed `ForbiddenError` / `UnauthorizedError`.
+- **Customer Privacy & Non-Impersonation Boundary**:
+  - Platform operator read models (`PlatformOperationsSummary`, `PlatformBusinessOperationsSummary`, `PlatformBusinessOperationsDetail`) enforce strict data boundaries:
+    - Zero customer PII: no customer names, phones, emails, or directory listings.
+    - Zero CRM exposure: no customer internal notes, duplicate candidates, or merge lineages.
+    - Zero appointment notes or capability tokens: no internal appointment notes, raw capability tokens, or capability URLs.
+    - Zero notification body exposure: outbox/delivery failure views omit raw notification content or SMS bodies.
+    - Zero financial or revenue metrics: no ciro, revenue, or price snapshots.
+    - Absolute zero impersonation: "login as business owner" or "view as customer" workflows are strictly prohibited by architecture.
+- **Authoritative Read Models & Explainable Health Model**:
+  - Macro-level platform metrics (`PlatformOperationsSummary`): total, active, and suspended businesses; total business owners; total active staff profiles; total appointments and appointments last 7 days; outbox pending/failed and delivery sent/failed counts.
+  - Paginated tenant operations listing (`PlatformBusinessOperationsSummary`): includes slug, active status, creation date, operational counts, last operational activity timestamp, terminal failure counts, and deterministic health status.
+  - Explainable Tenant Health: Derived deterministically via `computeBusinessHealth` without opaque AI scoring. Returns status (`HEALTHY`, `ATTENTION`, `SUSPENDED`) alongside an explicit array of human-readable explanation strings:
+    - `SUSPENDED`: business is suspended (`active = false`).
+    - `ATTENTION`: triggers if no active owners, no active staff, terminal outbox failures > 0, terminal delivery failures > 0, or inactive for > 30 days (`lastOperationalActivityAt == null` or older than 30 days).
+    - `HEALTHY`: active business with active owner, active staff, zero terminal failures, and operational activity within 30 days.
+  - Authoritative Business Activity: `lastOperationalActivityAt` is derived from the latest timestamp among appointments (`created_at`, `updated_at`, `start_time`), outbox events, delivery records, or business creation date.
+- **Safe Lifecycle Mutations & Controlled Requeue Operators**:
+  - `suspendBusiness` / `reactivateBusiness`: Transactional with `SELECT ... FOR UPDATE` row locking. Modifies `businesses.active` without destructive deletion. Requires an explicit, non-empty reason (minimum 5 characters). Automatically writes immutable `BUSINESS_SUSPENDED` or `BUSINESS_REACTIVATED` records to `platform_audit_logs`.
+  - Notification Requeue Operations:
+    - `requeueTerminalOutboxEvent`: Resets failed outbox event status to `PENDING`, sets `next_attempt_at = now()`, appends `NOTIFICATION_OUTBOX_REQUEUED` audit log.
+    - `requeueTerminalDelivery`: Checks delivery status; if `SENT`, strictly throws `CannotRequeueSentDeliveryError`. Resets failed delivery to `PENDING`, clears lease and attempts, appends `NOTIFICATION_DELIVERY_REQUEUED` audit log.
+- **High-Performance SQL Query Architecture (Zero N+1 Overhead)**:
+  - `PlatformOperationsRepository` executes bounded, set-based queries using PostgreSQL server-side conditional aggregation:
+    - Global summary executes in 1 single aggregate query using `FILTER (WHERE ...)`.
+    - Paginated tenant operations list executes in exactly 7 constant queries regardless of page size (1 paginated tenant query + 6 batch aggregations grouped by `business_id` using `WHERE business_id IN (...) GROUP BY business_id`).
+    - Scale invariant: benchmarked against 50+ concurrent tenants with deterministic constant query count.
