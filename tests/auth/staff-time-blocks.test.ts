@@ -226,10 +226,10 @@ describe("Staff Time Off / Break / Block Management (TASK 006A) Tests", () => {
       assert.match(res.error, /bulunamadı|üyeliğiniz/i);
     });
 
-    it("1.4 rejects STAFF role calling createStaffTimeBlockAction (Forbidden)", async () => {
+    it("1.4 rejects STAFF role calling createStaffTimeBlockAction for another staff profile (Forbidden)", async () => {
       mockSession({ id: userStaffA, email: "staff@biz-a.com" });
       const res = await timeBlocksActions.createStaffTimeBlockAction({
-        staffId: staffMemberA,
+        staffId: staffOwnerA,
         blockType: "BREAK",
         startDate: "2026-11-10",
         startTime: "12:00",
@@ -237,7 +237,7 @@ describe("Staff Time Off / Break / Block Management (TASK 006A) Tests", () => {
         endTime: "13:00",
       });
       assert.strictEqual(res.success, false);
-      assert.match(res.error, /role required|yetkiniz yok/i);
+      assert.match(res.error, /role required|yetkiniz yok|kendi personel profiliniz/i);
     });
 
     it("1.5 rejects ADMIN attempting to create a time block for OWNER's profile (Forbidden)", async () => {

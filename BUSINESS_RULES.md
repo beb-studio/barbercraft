@@ -593,3 +593,64 @@
    - Interactive elements (range tabs, action buttons) enforce `min-h-[44px]` touch targets.
    - Zero horizontal overflow on 390px mobile viewports.
    - Accessible table view toggle available for daily trend data.
+
+---
+
+## 26. Staff Workspace & Personal Operations Rules (TASK 018A)
+
+1. **Personal-Only Operational Authority**:
+   - `STAFF` authority is strictly restricted to their own trusted staff profile, resolved server-side through `session` → active `business_members` (`role = 'STAFF'`) → active `staff_profiles`.
+   - Browser-provided `businessId`, `staffId`, `staffProfileId`, or `membershipId` are never trusted as authority. Client requests supplying mismatched IDs are rejected with `ForbiddenError` ("Kendi personel profiliniz dışındaki...").
+2. **Zero Financial Exposure**:
+   - The staff workspace DTO (`StaffWorkspaceData`) and staff dashboard view must never include financial amounts, price snapshots (`priceSnapshot`, `servicePriceSnapshot`), collected revenue, "Ciro", "Tahsilat", "Gelir", or "Tamamlanan Hizmet Tutarı".
+   - Staff pulse metrics are strictly counts: `totalAppointmentsToday`, `remainingAppointmentsToday`, `completedToday`, `cancelledToday`, `noShowToday`, `weekTotalAppointments`, `weekCompletedAppointments`.
+3. **Customer Privacy Boundary**:
+   - `STAFF` members receive only the minimal operational customer information necessary for appointment execution: `firstName`, `lastName`, and `phone`.
+   - `STAFF` users must never receive or view customer CRM notes, customer merge lineage, duplicate candidates, or full customer directories.
+   - `getCustomerNotesAction`, `getCustomerDetailAction`, `getCustomerDirectoryAction`, and `mergeCustomersAction` are strictly forbidden for `STAFF`.
+   - Customer search for manual booking (`searchCustomersForBookingAction`) returns strictly operational identity data without CRM history or notes.
+4. **Appointment Action Policy**:
+   - `STAFF` may update status only for appointments assigned to their own staff profile. Attempts to mutate another staff member's appointment are rejected.
+   - Allowed transitions: `COMPLETE`, `NO_SHOW`, `CANCEL`. Terminal statuses (`COMPLETED`, `CANCELLED`, `NO_SHOW`) cannot be reverted.
+   - Reassignment is strictly forbidden for `STAFF` (`canReassign: false`).
+5. **Staff Reschedule & Manual Booking Policy**:
+   - `STAFF` may reschedule their own appointments to an available slot. The operation must retain the original staff profile, original service, original customer, and original price snapshots.
+   - Rescheduling to an unavailable or conflicting slot is rejected atomically via PostgreSQL row locking.
+   - `STAFF` manual booking creates appointments assigned strictly to their own profile, with source set to `MANUAL_STAFF`. Attempts to forge another staff member's assignment are rejected.
+6. **Personal Time Blocks**:
+   - `STAFF` members may create and delete temporary personal time blocks (`TIME_OFF`, `BREAK`, `BLOCKED`) for their own staff profile only.
+   - A time block must not overlap existing operational appointments (`PENDING`, `CONFIRMED`). On collision, creation is rejected with `TimeBlockAppointmentOverlapError` ("Bu zaman aralığında mevcut bir randevunuz bulunuyor.").
+   - `STAFF` cannot delete past time blocks or time blocks belonging to other staff members.
+   - Recurring weekly working schedule management (`saveStaffWorkingHoursAction`) remains strictly reserved for `OWNER` and `ADMIN`.
+7. **Assigned Services**:
+   - `STAFF` may view their assigned services in read-only mode (`assignedServices`: `id`, `name`, `durationMinutes`, `active`).
+   - `STAFF` cannot create, edit, or delete services, modify service prices or durations, or alter service assignments.
+8. **Timezone & Calendar Semantics**:
+   - All calendar representations, today dates, and week ranges are evaluated in the business's authoritative IANA timezone (`businesses.timezone`).
+   - The current week agenda is strictly Monday through Sunday (7 days) evaluated using business-local calendar midnight boundaries.
+
+---
+
+## 27. Staff Mobile Workspace UX Rules (TASK 018B)
+
+1. **Immediate Operational Clarity**:
+   - The staff mobile workspace at `/dashboard` must answer four core operational questions within seconds:
+     - How many appointments do I have today? (`OperationalPulse` - total, remaining, completed).
+     - Who is my next client and when? (`HeroNextAppointmentCard` - customer name, start time).
+     - What service will I provide? (`HeroNextAppointmentCard` - service name, duration).
+     - How can I call the customer? (`HeroNextAppointmentCard` - direct `tel:` phone link).
+2. **Minimal Operational Customer Disclosure & Click-to-Call**:
+   - Phone numbers must render as accessible `<a href="tel:...">` links with >=44px touch targets.
+   - Disclosure is limited to `firstName`, `lastName`, and `phone`. No customer CRM notes, internal appointment notes (`notes`), customer merge lineage, or browsing capabilities are disclosed.
+3. **Operational Action Safeguards & Optimistic Locking**:
+   - Operational status transitions (`COMPLETE`, `NO_SHOW`, `CANCEL`) must be confirmed via accessible dialogs before execution. Terminal states (`COMPLETED`, `CANCELLED`, `NO_SHOW`) cannot be reverted.
+   - Rescheduling maintains original staff assignment, service, customer, and original price snapshots, and passes `updatedAt` for optimistic concurrency verification.
+4. **Self-Service Time Block Safeguards**:
+   - `STAFF` may create personal time blocks (`TIME_OFF`, `BREAK`, `BLOCKED`). Overlap with existing operational appointments (`PENDING`, `CONFIRMED`) is rejected with `TimeBlockAppointmentOverlapError`.
+   - `STAFF` may delete only their own future time blocks. Deleting past time blocks or blocks of colleagues is strictly rejected.
+5. **Strict Zero Financial Exposure**:
+   - Staff workspace components, actions, and DTOs must never expose financial values or terms: zero `priceSnapshot`, `servicePriceSnapshot`, `revenue`, "Ciro", "Tahsilat", "Gelir", or "Tamamlanan Hizmet Tutarı".
+6. **Assigned Services Read-Only Rule**:
+   - Services assigned to staff are presented with service name and duration in minutes only. Zero prices and zero edit buttons are displayed.
+7. **Role-Scoped Dashboard Navigation**:
+   - `STAFF` users receive an uncluttered, focused operational interface. Management routes ("Hizmetler", "Personel", "Müşteriler", "Ayarlar") are hidden from desktop sidebar, mobile bottom navigation, and top breadcrumbs.

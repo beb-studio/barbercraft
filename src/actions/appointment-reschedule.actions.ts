@@ -1,6 +1,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+
+function safeRevalidatePath(path: string) {
+  try {
+    revalidatePath(path);
+  } catch {
+    // In standalone test environments, Next.js static generation store is not initialized
+  }
+}
+
 import { getCurrentUser, getMemberships } from "@/lib/auth/session";
 import { AppointmentService } from "@/services/appointment.service";
 
@@ -35,7 +44,8 @@ export async function rescheduleAppointmentAction(
       userRole: membership.role
     });
 
-    revalidatePath("/dashboard/appointments");
+    safeRevalidatePath("/dashboard");
+    safeRevalidatePath("/dashboard/appointments");
     return { success: true };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);

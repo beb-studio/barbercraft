@@ -538,3 +538,47 @@ drizzle/
   - Booked service value is strictly labeled "Tamamlanan Hizmet Tutarı" with explicit helper text: *"Tamamlanan randevuların kayıtlı hizmet tutarıdır; tahsilat verisi değildir."* Prohibits "Ciro", "Gelir", "Tahsilat", "Net Gelir", "Revenue", and "Kâr".
   - Rate formatting (`formatPercentage`) safely formats decimal ratios to `%12,5` and returns `"—"` for zero denominators or nulls.
   - Meets mobile-first 390px baseline, touch targets >= 44px, and Turkish language policy.
+
+### 3.27 Staff Workspace & Personal Operations Foundation (TASK 018A)
+
+- **Personal Operational Authority Model**:
+  - `STAFF` authority is strictly personal and operational. It is never trusted via client-supplied parameters (`businessId`, `staffId`, `membershipId`).
+  - Authority resolution flow: `requireSession()` → `getMemberships()` → active tenant `business_members` row with role `'STAFF'` → join `staff_profiles` where `business_member_id = membership.id` AND `active = true`.
+  - Attempts by `STAFF` to inspect or mutate another staff profile's appointments, time blocks, or calendar reject with typed `ForbiddenError` ("Kendi personel profiliniz dışındaki...").
+- **Zero Financial Exposure & Strict Customer Privacy**:
+  - The staff workspace read model (`StaffWorkspaceData`) rigorously scrubs financial fields: zero `priceSnapshot`, `servicePriceSnapshot`, `revenue`, `ciro`, or `completedServiceValue`.
+  - Customer contact disclosure is minimal and strictly operational: `firstName`, `lastName`, `phone`. Zero access to `customer_notes`, merge lineage, duplicate detection, or customer directory browsing (`getCustomerNotesAction`, `getCustomerDetailAction`, `getCustomerDirectoryAction`, `mergeCustomersAction` are strictly forbidden for STAFF).
+- **Date & Week Boundaries in Business Timezone**:
+  - All calendars, appointments, and pulses are evaluated in the business's authoritative IANA timezone (`businesses.timezone`, e.g. `Europe/Istanbul`).
+  - Week grouping runs Monday through Sunday using `getBusinessWeekDays`. Daily boundaries convert local calendar dates `YYYY-MM-DD` to exact half-open UTC instants `[startInstant, endInstant)`.
+- **Operational Appointment Lifecycle & Invariants**:
+  - `STAFF` may transition their own assigned appointments between allowed operational statuses (`COMPLETE`, `NO_SHOW`, `CANCEL`). Terminal statuses cannot be reverted.
+  - Reassignment to another staff member is strictly forbidden for STAFF (`canReassign: false`).
+  - Rescheduling retains original staff assignment, original service, original customer, and original price snapshots; slot conflict validation is enforced atomically via PostgreSQL row locking.
+- **Personal Time Block Self-Service & Appointment Overlap Prevention**:
+  - `STAFF` members can create and delete their own temporary time blocks (`TIME_OFF`, `BREAK`, `BLOCKED`).
+  - Creating a time block locks the staff row (`SELECT ... FOR UPDATE`) and checks against existing `PENDING` and `CONFIRMED` operational appointments. If an appointment exists in the interval, creation is rejected with `TimeBlockAppointmentOverlapError` ("Bu zaman aralığında mevcut bir randevunuz bulunuyor.").
+  - Recurring weekly schedule mutations (`saveStaffWorkingHoursAction`) remain strictly restricted to `OWNER` and `ADMIN`.
+
+### 3.28 Staff Mobile Workspace UX Architecture (TASK 018B)
+
+- **Mobile-First Operational Architecture (390px Baseline)**:
+  - Primary view `/dashboard` dynamically renders `StaffDashboardView` for `STAFF` users, architected for fast, one-handed mobile operations on 390px phone screens.
+  - Zero horizontal overflow (`overflow-x-hidden`), high-contrast visual hierarchy, touch targets >= 44px (`min-h-[44px]`), and safe bottom padding (`pb-24`) preventing occlusion by the mobile bottom navigation bar.
+- **Component Structure & Information Hierarchy**:
+  1. **Header & Quick Actions**: Localized date, business name, staff role badge, IANA timezone caption, and direct quick action buttons ("+ Mola Ekle", "Yeni Randevu").
+  2. **Next Appointment Hero Card**: Prominent operational card answering "Who is next, when, and for what service?". Includes customer name, service name/duration, start time, direct click-to-call link (`<a href="tel:...">`), and inline action triggers ("Tamamla", "Gelmedi", "Saati Değiştir", "İptal Et"). Renders a calm reassuring empty state when all appointments for the day are finished.
+  3. **Operational Pulse**: 3 core counter cards ("Bugün", "Kalan", "Tamamlanan"), weekly completion ratio, and secondary cancellation/no-show indicators. Rigorously excludes all financial fields and terminology.
+  4. **7-Day Week Ribbon (Pzt–Paz)**: Responsive Monday-to-Sunday date ribbon using unambiguous Turkish abbreviations (`Pzt`, `Sal`, `Çar`, `Per`, `Cum`, `Cmt`, `Paz`), displaying daily appointment counts, off-day indicators, and active day switching.
+  5. **Selected Day Agenda Stream**: Interleaved chronological timeline combining operational appointments and personal time blocks, displaying start/end times, customer phone, service details, and inline status/action buttons.
+  6. **Assigned Services**: Read-only cards listing active assigned services and duration in minutes, strictly omitting prices and edit controls.
+- **Base UI Accessible Modal Dialogs**:
+  - Accessible `@base-ui/react/alert-dialog` implementations for operational confirmations: Status transition dialog ("Tamamla", "Gelmedi", "İptal Et"), Reschedule slot selector dialog, Time Block creation modal, and Time Block deletion dialog.
+  - Traps keyboard focus, handles Escape dismissal, provides clear Turkish descriptions, and announces server action errors inline.
+- **Concurrency & Cache Invalidation**:
+  - Optimistic concurrency protection: Rescheduling passes `updatedAt` timestamp to prevent overwrite collisions if the appointment was modified in parallel.
+  - Status updates, reschedules, and time block mutations call `safeRevalidatePath("/dashboard")` and `safeRevalidatePath("/dashboard/appointments")` to ensure immediate UI synchronization across server and client components.
+- **Role-Scoped Dashboard Navigation**:
+  - In `DashboardShell` and `MobileNav`, navigation is strictly role-scoped:
+    - `STAFF`: Desktop sidebar renders "Programım", "Ajanda", "Yeni Randevu"; mobile bottom nav renders "Bugün", "Ajanda", "Yeni Randevu". Management routes (Services, Staff, Customers, Settings) are completely hidden.
+    - `OWNER` / `ADMIN`: Retains full administrative navigation and business analytics command center with zero regression.

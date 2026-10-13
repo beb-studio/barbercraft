@@ -16,6 +16,7 @@ import { getCurrentUser, getMemberships } from "@/lib/auth/session";
 import { getBusinessById } from "@/repositories/business.repository";
 import { getDashboardDailyAgenda } from "@/services/dashboard-appointments.service";
 import { BusinessAnalyticsService } from "@/services/business-analytics.service";
+import { StaffWorkspaceService } from "@/services/staff-workspace.service";
 import { isValidAnalyticsPreset } from "@/lib/business-analytics/range";
 import { getBusinessLocalToday } from "@/lib/timezone";
 import { getAppointmentStatusLabel } from "@/lib/presentation";
@@ -64,22 +65,13 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   // Strictly isolates STAFF from business-wide analytics & financials
   // ============================================================
   if (role === "STAFF") {
-    const { appointments: staffTodayAppointments } = await getDashboardDailyAgenda(
+    const workspace = await StaffWorkspaceService.getStaffWorkspace({
       businessId,
-      user.id,
+      userId: user.id,
       role,
-      todayStr
-    );
+    });
 
-    return (
-      <StaffDashboardView
-        businessName={business?.name || "İşletme"}
-        userName={user.email || "Personel"}
-        timezone={timezone}
-        todayDateStr={todayStr}
-        todayAppointments={staffTodayAppointments}
-      />
-    );
+    return <StaffDashboardView workspace={workspace} />;
   }
 
   // ============================================================

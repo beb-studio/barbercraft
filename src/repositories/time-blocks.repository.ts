@@ -26,6 +26,13 @@ export class TimeBlockOverlapError extends Error {
   }
 }
 
+export class TimeBlockAppointmentOverlapError extends Error {
+  constructor(message: string = "Bu zaman aralığında mevcut bir randevunuz bulunuyor.") {
+    super(message);
+    this.name = "TimeBlockAppointmentOverlapError";
+  }
+}
+
 /**
  * List all time blocks for a specific staff member in a business, ordered chronologically.
  */
@@ -136,7 +143,7 @@ export async function createStaffTimeBlockWithLock(
       .limit(1);
       
     if (apptOverlap) {
-      throw new Error("Belirtilen zaman aralığı mevcut bir randevu ile çakışmaktadır.");
+      throw new TimeBlockAppointmentOverlapError("Bu zaman aralığında mevcut bir randevunuz bulunuyor.");
     }
 
     // 3. Insert new time block
@@ -251,7 +258,7 @@ export async function updateStaffTimeBlockWithLock(
       .limit(1);
       
     if (apptOverlap) {
-      throw new Error("Belirtilen zaman aralığı mevcut bir randevu ile çakışmaktadır.");
+      throw new TimeBlockAppointmentOverlapError("Bu zaman aralığında mevcut bir randevunuz bulunuyor.");
     }
 
     // 5. Apply update
@@ -283,6 +290,7 @@ export async function updateStaffTimeBlockWithLock(
  */
 export async function deleteStaffTimeBlock(
   businessId: string,
+  staffId: string,
   blockId: string,
   referenceNow: Date = new Date()
 ): Promise<TimeBlock> {
@@ -293,6 +301,7 @@ export async function deleteStaffTimeBlock(
       .where(
         and(
           eq(timeBlocks.businessId, businessId),
+          eq(timeBlocks.staffId, staffId),
           eq(timeBlocks.id, blockId)
         )
       );
@@ -310,6 +319,7 @@ export async function deleteStaffTimeBlock(
       .where(
         and(
           eq(timeBlocks.businessId, businessId),
+          eq(timeBlocks.staffId, staffId),
           eq(timeBlocks.id, blockId)
         )
       );

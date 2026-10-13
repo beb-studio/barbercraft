@@ -270,7 +270,7 @@ describe("TASK 017B: Business Dashboard & Analytics UX Integration", () => {
       assert.doesNotMatch(staffCardCode, /Personel Geliri/);
     });
 
-    it("ensures StaffDashboardView contains zero financial or revenue metrics", async () => {
+    it("ensures StaffDashboardView contains zero financial, revenue, or internal note metrics", async () => {
       const staffViewCode = await readFile(
         "src/components/dashboard/staff-dashboard-view.tsx",
         "utf8"
@@ -281,6 +281,9 @@ describe("TASK 017B: Business Dashboard & Analytics UX Integration", () => {
       assert.doesNotMatch(staffViewCode, /priceSnapshot/);
       assert.doesNotMatch(staffViewCode, /Ciro/i);
       assert.doesNotMatch(staffViewCode, /Gelir/i);
+      assert.doesNotMatch(staffViewCode, /\.notes\b/);
+      assert.doesNotMatch(staffViewCode, /customerNotes/i);
+      assert.doesNotMatch(staffViewCode, /internalNotes/i);
     });
   });
 
