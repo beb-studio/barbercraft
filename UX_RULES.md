@@ -111,3 +111,19 @@ The application is engineered strictly **mobile-first**.
 4. "Tamamlanan Hizmet Tutarı" is presented with an explanatory subtitle: *"Tamamlanan randevuların kayıtlı hizmet tutarıdır; tahsilat verisi değildir."* Prohibited labels ("Ciro", "Gelir", "Tahsilat", "Net Gelir", "Revenue", "Kâr") are strictly barred.
 5. Daily trend chart uses pure CSS/SVG bars with accessible region semantics, keyboard focus, and an accessible table toggle for assistive technology.
 6. Mobile viewports (390px baseline) stack KPI cards and lists gracefully without horizontal overflow or clipping.
+
+---
+
+## 9. Staff Workspace & Personal Operations UX Rules (TASK 018A)
+
+1. **Strict Operational Personal Focus**:
+   - `STAFF` users accessing `/dashboard` see `StaffDashboardView` customized exclusively to their personal operational agenda.
+   - Zero exposure to business-wide revenue, financial metrics, service price snapshots, customer notes, or colleague performance data.
+2. **Personal Daily Agenda & Operational Pulse**:
+   - Clear high-level pulse counters for today's volume: total appointments, remaining, completed, cancelled, and no-shows.
+   - Fast access to today's appointment list with customer names, start/end times, and appointment statuses.
+3. **Touch Targets & Mobile Ergonomics**:
+   - Quick action shortcuts ("Yeni Randevu", "Ajandaya Git") satisfy the `min-h-[44px]` touch target guideline.
+   - Responsive presentation provides desktop table view and mobile card view without horizontal overflow on 390px screens.
+4. **Turkish Language Policy**:
+   - All UI labels, status badges ("Bekliyor", "Onaylandı", "Tamamlandı", "İptal Edildi", "Gelmedi"), time block types ("Mola", "İzin", "Engellendi"), and operational feedback strings are strictly in Turkish.

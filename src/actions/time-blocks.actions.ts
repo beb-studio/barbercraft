@@ -1,6 +1,6 @@
 "use server";
 
-import { requireSession, requireAdminOrOwner } from "@/lib/auth/guards";
+import { requireSession, requireAdminOrOwner, ForbiddenError } from "@/lib/auth/guards";
 import { getMemberships } from "@/lib/auth/session";
 import {
   getStaffTimeBlocksService,
@@ -11,9 +11,12 @@ import {
   type UpdateTimeBlockDTO,
   type FormattedTimeBlock,
 } from "@/services/time-blocks.service";
-import { TimeBlockOverlapError } from "@/repositories/time-blocks.repository";
+import {
+  TimeBlockOverlapError,
+  TimeBlockAppointmentOverlapError,
+} from "@/repositories/time-blocks.repository";
 
-async function resolveAuthorizedBusiness() {
+async function resolveAuthorizedBusiness(targetStaffId?: string) {
   const user = await requireSession();
   const memberships = await getMemberships();
 
@@ -21,9 +24,36 @@ async function resolveAuthorizedBusiness() {
     throw new Error("İşletme bulunamadı veya aktif üyeliğiniz bulunmuyor.");
   }
 
-  const targetBusinessId = memberships[0].business_id;
-  const { membership } = await requireAdminOrOwner(targetBusinessId);
-  return { businessId: targetBusinessId, user, role: membership.role };
+  const membership = memberships[0];
+  const targetBusinessId = membership.business_id;
+
+  if (membership.role === "STAFF") {
+    const { db } = await import("@/db");
+    const { staffProfiles } = await import("@/db/schema");
+    const { eq, and } = await import("drizzle-orm");
+
+    const [sp] = await db
+      .select({ id: staffProfiles.id, active: staffProfiles.active })
+      .from(staffProfiles)
+      .where(
+        and(
+          eq(staffProfiles.businessMemberId, membership.id),
+          eq(staffProfiles.businessId, targetBusinessId)
+        )
+      )
+      .limit(1);
+
+    if (!sp || (targetStaffId && sp.id !== targetStaffId)) {
+      throw new ForbiddenError("Kendi personel profiliniz dışındaki zaman bloklarını yönetemezsiniz.");
+    }
+    if (!sp.active) {
+      throw new ForbiddenError("Personel profili aktif değil.");
+    }
+    return { businessId: targetBusinessId, user, role: membership.role, staffId: sp.id };
+  }
+
+  const { membership: checkedMembership } = await requireAdminOrOwner(targetBusinessId);
+  return { businessId: targetBusinessId, user, role: checkedMembership.role, staffId: targetStaffId };
 }
 
 export interface GetStaffTimeBlocksPayload {
@@ -41,8 +71,8 @@ export async function getStaffTimeBlocksAction(payload: GetStaffTimeBlocksPayloa
       return { success: false, error: "Geçersiz personel ID." };
     }
 
-    const { businessId, role } = await resolveAuthorizedBusiness();
-    const result = await getStaffTimeBlocksService(businessId, payload.staffId, role);
+    const { businessId, role, user } = await resolveAuthorizedBusiness(payload.staffId);
+    const result = await getStaffTimeBlocksService(businessId, payload.staffId, role, user.id);
 
     return {
       success: true,
@@ -78,7 +108,7 @@ export async function createStaffTimeBlockAction(payload: CreateStaffTimeBlockPa
       return { success: false, error: "Geçersiz personel ID." };
     }
 
-    const { businessId, role } = await resolveAuthorizedBusiness();
+    const { businessId, role, user } = await resolveAuthorizedBusiness(payload.staffId);
     const block = await createStaffTimeBlockService(
       businessId,
       payload.staffId,
@@ -90,7 +120,8 @@ export async function createStaffTimeBlockAction(payload: CreateStaffTimeBlockPa
         endTime: payload.endTime,
         reason: payload.reason,
       },
-      role
+      role,
+      user.id
     );
 
     return { success: true, block };
@@ -103,6 +134,9 @@ export async function createStaffTimeBlockAction(payload: CreateStaffTimeBlockPa
         return { success: false, error: error.message || "Bu işlem için yetkiniz yok." };
       }
       if (error instanceof TimeBlockOverlapError) {
+        return { success: false, error: error.message, isOverlap: true };
+      }
+      if (error instanceof TimeBlockAppointmentOverlapError) {
         return { success: false, error: error.message, isOverlap: true };
       }
       return { success: false, error: error.message };
@@ -130,7 +164,7 @@ export async function updateStaffTimeBlockAction(payload: UpdateStaffTimeBlockPa
       return { success: false, error: "Geçersiz blok ID." };
     }
 
-    const { businessId, role } = await resolveAuthorizedBusiness();
+    const { businessId, role, user } = await resolveAuthorizedBusiness(payload.staffId);
     const block = await updateStaffTimeBlockService(
       businessId,
       payload.staffId,
@@ -143,7 +177,8 @@ export async function updateStaffTimeBlockAction(payload: UpdateStaffTimeBlockPa
         endTime: payload.endTime,
         reason: payload.reason,
       },
-      role
+      role,
+      user.id
     );
 
     return { success: true, block };
@@ -156,6 +191,9 @@ export async function updateStaffTimeBlockAction(payload: UpdateStaffTimeBlockPa
         return { success: false, error: error.message || "Bu işlem için yetkiniz yok." };
       }
       if (error instanceof TimeBlockOverlapError) {
+        return { success: false, error: error.message, isOverlap: true };
+      }
+      if (error instanceof TimeBlockAppointmentOverlapError) {
         return { success: false, error: error.message, isOverlap: true };
       }
       return { success: false, error: error.message };
@@ -182,12 +220,13 @@ export async function deleteStaffTimeBlockAction(payload: DeleteStaffTimeBlockPa
       return { success: false, error: "Geçersiz blok ID." };
     }
 
-    const { businessId, role } = await resolveAuthorizedBusiness();
+    const { businessId, role, user } = await resolveAuthorizedBusiness(payload.staffId);
     const result = await deleteStaffTimeBlockService(
       businessId,
       payload.staffId,
       payload.blockId,
-      role
+      role,
+      user.id
     );
 
     return { success: true, deletedId: result.deletedId };

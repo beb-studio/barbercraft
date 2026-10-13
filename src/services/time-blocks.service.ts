@@ -7,6 +7,7 @@ import {
 import { getStaffProfileDetailById } from "@/repositories/staff.repository";
 import { getBusinessById } from "@/repositories/business.repository";
 import { assertCanManageStaffProfile } from "./staff.service";
+import { ForbiddenError } from "@/lib/auth/guards";
 import {
   parseDateTimeInBusinessTimezone,
   formatInstantInBusinessTimezone,
@@ -14,6 +15,23 @@ import {
   type TimeBlockStatus,
 } from "@/lib/timezone";
 import type { TimeBlock, TimeBlockType } from "@/db/schema";
+
+export function assertCanManageTimeBlocks(
+  callerRole: string,
+  targetStaff: { id: string; active?: boolean; member: { role: string; userId?: string; active?: boolean } },
+  callerUserId?: string
+) {
+  if (callerRole === "STAFF") {
+    if (!callerUserId || targetStaff.member.userId !== callerUserId) {
+      throw new ForbiddenError("Kendi personel profiliniz dışındaki zaman bloklarını yönetemezsiniz.");
+    }
+    if (targetStaff.active === false || targetStaff.member.active === false) {
+      throw new ForbiddenError("Personel profili veya üyeliği aktif değil.");
+    }
+    return;
+  }
+  assertCanManageStaffProfile(callerRole, targetStaff.member.role);
+}
 
 export const VALID_BLOCK_TYPES: readonly TimeBlockType[] = [
   "TIME_OFF",
@@ -161,14 +179,15 @@ function validateAndParseInterval(
 export async function getStaffTimeBlocksService(
   businessId: string,
   staffId: string,
-  callerRole: string
+  callerRole: string,
+  callerUserId?: string
 ): Promise<{ blocks: FormattedTimeBlock[]; businessTimezone: string }> {
   const staff = await getStaffProfileDetailById(businessId, staffId);
   if (!staff) {
     throw new Error("Personel bulunamadı.");
   }
 
-  assertCanManageStaffProfile(callerRole, staff.member.role);
+  assertCanManageTimeBlocks(callerRole, staff, callerUserId);
 
   const business = await getBusinessById(businessId);
   const businessTimezone = business?.timezone || "Europe/Istanbul";
@@ -187,14 +206,15 @@ export async function createStaffTimeBlockService(
   businessId: string,
   staffId: string,
   input: CreateTimeBlockDTO,
-  callerRole: string
+  callerRole: string,
+  callerUserId?: string
 ): Promise<FormattedTimeBlock> {
   const staff = await getStaffProfileDetailById(businessId, staffId);
   if (!staff) {
     throw new Error("Personel bulunamadı.");
   }
 
-  assertCanManageStaffProfile(callerRole, staff.member.role);
+  assertCanManageTimeBlocks(callerRole, staff, callerUserId);
 
   const business = await getBusinessById(businessId);
   const businessTimezone = business?.timezone || "Europe/Istanbul";
@@ -219,14 +239,15 @@ export async function updateStaffTimeBlockService(
   staffId: string,
   blockId: string,
   input: UpdateTimeBlockDTO,
-  callerRole: string
+  callerRole: string,
+  callerUserId?: string
 ): Promise<FormattedTimeBlock> {
   const staff = await getStaffProfileDetailById(businessId, staffId);
   if (!staff) {
     throw new Error("Personel bulunamadı.");
   }
 
-  assertCanManageStaffProfile(callerRole, staff.member.role);
+  assertCanManageTimeBlocks(callerRole, staff, callerUserId);
 
   const business = await getBusinessById(businessId);
   const businessTimezone = business?.timezone || "Europe/Istanbul";
@@ -257,17 +278,18 @@ export async function deleteStaffTimeBlockService(
   businessId: string,
   staffId: string,
   blockId: string,
-  callerRole: string
+  callerRole: string,
+  callerUserId?: string
 ): Promise<{ success: true; deletedId: string }> {
   const staff = await getStaffProfileDetailById(businessId, staffId);
   if (!staff) {
     throw new Error("Personel bulunamadı.");
   }
 
-  assertCanManageStaffProfile(callerRole, staff.member.role);
+  assertCanManageTimeBlocks(callerRole, staff, callerUserId);
 
   const now = new Date();
-  const deleted = await deleteStaffTimeBlock(businessId, blockId, now);
+  const deleted = await deleteStaffTimeBlock(businessId, staffId, blockId, now);
 
   return { success: true, deletedId: deleted.id };
 }

@@ -349,7 +349,11 @@ export async function saveStaffWorkingHoursAction(payload: SaveStaffWorkingHours
         return { success: false as const, error: "Yetkisiz işlem. Lütfen giriş yapın." };
       }
       if (error.name === "ForbiddenError") {
-        return { success: false as const, error: error.message || "Bu işlem için yetkiniz yok." };
+        const msg =
+          error.message === "ADMIN or OWNER role required"
+            ? "Bu işlem için yetkiniz yok."
+            : error.message || "Bu işlem için yetkiniz yok.";
+        return { success: false as const, error: msg };
       }
       return { success: false as const, error: error.message };
     }

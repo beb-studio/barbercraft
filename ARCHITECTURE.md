@@ -538,3 +538,24 @@ drizzle/
   - Booked service value is strictly labeled "Tamamlanan Hizmet Tutarı" with explicit helper text: *"Tamamlanan randevuların kayıtlı hizmet tutarıdır; tahsilat verisi değildir."* Prohibits "Ciro", "Gelir", "Tahsilat", "Net Gelir", "Revenue", and "Kâr".
   - Rate formatting (`formatPercentage`) safely formats decimal ratios to `%12,5` and returns `"—"` for zero denominators or nulls.
   - Meets mobile-first 390px baseline, touch targets >= 44px, and Turkish language policy.
+
+### 3.27 Staff Workspace & Personal Operations Foundation (TASK 018A)
+
+- **Personal Operational Authority Model**:
+  - `STAFF` authority is strictly personal and operational. It is never trusted via client-supplied parameters (`businessId`, `staffId`, `membershipId`).
+  - Authority resolution flow: `requireSession()` → `getMemberships()` → active tenant `business_members` row with role `'STAFF'` → join `staff_profiles` where `business_member_id = membership.id` AND `active = true`.
+  - Attempts by `STAFF` to inspect or mutate another staff profile's appointments, time blocks, or calendar reject with typed `ForbiddenError` ("Kendi personel profiliniz dışındaki...").
+- **Zero Financial Exposure & Strict Customer Privacy**:
+  - The staff workspace read model (`StaffWorkspaceData`) rigorously scrubs financial fields: zero `priceSnapshot`, `servicePriceSnapshot`, `revenue`, `ciro`, or `completedServiceValue`.
+  - Customer contact disclosure is minimal and strictly operational: `firstName`, `lastName`, `phone`. Zero access to `customer_notes`, merge lineage, duplicate detection, or customer directory browsing (`getCustomerNotesAction`, `getCustomerDetailAction`, `getCustomerDirectoryAction`, `mergeCustomersAction` are strictly forbidden for STAFF).
+- **Date & Week Boundaries in Business Timezone**:
+  - All calendars, appointments, and pulses are evaluated in the business's authoritative IANA timezone (`businesses.timezone`, e.g. `Europe/Istanbul`).
+  - Week grouping runs Monday through Sunday using `getBusinessWeekDays`. Daily boundaries convert local calendar dates `YYYY-MM-DD` to exact half-open UTC instants `[startInstant, endInstant)`.
+- **Operational Appointment Lifecycle & Invariants**:
+  - `STAFF` may transition their own assigned appointments between allowed operational statuses (`COMPLETE`, `NO_SHOW`, `CANCEL`). Terminal statuses cannot be reverted.
+  - Reassignment to another staff member is strictly forbidden for STAFF (`canReassign: false`).
+  - Rescheduling retains original staff assignment, original service, original customer, and original price snapshots; slot conflict validation is enforced atomically via PostgreSQL row locking.
+- **Personal Time Block Self-Service & Appointment Overlap Prevention**:
+  - `STAFF` members can create and delete their own temporary time blocks (`TIME_OFF`, `BREAK`, `BLOCKED`).
+  - Creating a time block locks the staff row (`SELECT ... FOR UPDATE`) and checks against existing `PENDING` and `CONFIRMED` operational appointments. If an appointment exists in the interval, creation is rejected with `TimeBlockAppointmentOverlapError` ("Bu zaman aralığında mevcut bir randevunuz bulunuyor.").
+  - Recurring weekly schedule mutations (`saveStaffWorkingHoursAction`) remain strictly restricted to `OWNER` and `ADMIN`.

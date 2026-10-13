@@ -6,3 +6,4 @@ export * from "./staff";
 export * from "./customer";
 export * from "./appointment";
 export * from "./business-analytics";
+export * from "./staff-workspace";
