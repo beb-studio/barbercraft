@@ -55,6 +55,7 @@ export interface StaffWorkspaceAgendaAppointment {
   localDate: string; // YYYY-MM-DD
   status: AppointmentStatus;
   source: AppointmentSource;
+  updatedAt: string; // ISO string for optimistic concurrency
   customer: StaffWorkspaceCustomer;
   service: {
     name: string;
@@ -110,6 +111,7 @@ export interface StaffWorkspaceNextAppointment {
   localEndTime: string; // HH:mm
   localDate: string; // YYYY-MM-DD
   status: AppointmentStatus;
+  updatedAt: string;
 }
 
 export interface StaffWorkspaceData {

@@ -127,3 +127,21 @@ The application is engineered strictly **mobile-first**.
    - Responsive presentation provides desktop table view and mobile card view without horizontal overflow on 390px screens.
 4. **Turkish Language Policy**:
    - All UI labels, status badges ("Bekliyor", "Onaylandı", "Tamamlandı", "İptal Edildi", "Gelmedi"), time block types ("Mola", "İzin", "Engellendi"), and operational feedback strings are strictly in Turkish.
+
+---
+
+## 10. Staff Mobile Workspace UX Rules (TASK 018B)
+
+1. **390px Mobile Baseline & Zero Horizontal Overflow**:
+   - The entire staff workspace interface is strictly built and verified against the 390px mobile baseline (iPhone 12/13/14).
+   - Zero horizontal overflow (`overflow-x-hidden`), cards wrap cleanly, and lists adapt to narrow viewports without clipping or horizontal scrollbars.
+2. **Touch Targets & Bottom Spacing Ergonomics**:
+   - Every interactive element (operational buttons, ribbon tabs, phone links, modal actions) enforces `min-h-[44px]` touch targets.
+   - Page container enforces safe bottom padding (`pb-24`) ensuring actions are never hidden behind the floating mobile bottom navigation bar.
+3. **Standard Turkish Day Abbreviations**:
+   - Week ribbon displays unambiguous non-colliding abbreviations: `Pzt`, `Sal`, `Çar`, `Per`, `Cum`, `Cmt`, `Paz`.
+4. **Hero Next Appointment Card & Calm Empty State**:
+   - Prominently displays the immediate next operational task with status badge, customer name, service name/duration, start time, direct click-to-call link, and quick action buttons.
+   - When no upcoming appointments remain for today, renders a calm reassuring empty state ("Bugün için başka randevunuz bulunmuyor.").
+5. **Accessible Base UI Dialogs**:
+   - Status updates ("Tamamla", "Gelmedi", "İptal Et"), reschedule slot picking, and time block creation/deletion use accessible `@base-ui/react/alert-dialog` primitives with keyboard trapping, backdrop blur, explicit focus management, and descriptive Turkish alerts.

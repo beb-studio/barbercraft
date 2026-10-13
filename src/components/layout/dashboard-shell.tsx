@@ -15,6 +15,7 @@ import {
   User,
   Settings,
   BellRing,
+  Plus,
 } from "lucide-react";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { Badge } from "@/components/ui/badge";
@@ -56,61 +57,96 @@ export function DashboardShell({
     }
   };
 
-  const navItems = [
-    {
-      href: "/dashboard",
-      label: "Genel Bakış",
-      icon: LayoutDashboard,
-      exact: true,
-      showInBottomNav: true,
-    },
-    {
-      href: "/dashboard/appointments",
-      label: "Randevular",
-      icon: Calendar,
-      exact: false,
-      showInBottomNav: true,
-    },
-    ...(userRole === "OWNER" || userRole === "ADMIN"
+  const navItems =
+    userRole === "STAFF"
       ? [
           {
-            href: "/dashboard/services",
-            label: "Hizmetler",
-            icon: Scissors,
+            href: "/dashboard",
+            label: "Programım",
+            mobileLabel: "Bugün",
+            icon: LayoutDashboard,
+            exact: true,
+            showInBottomNav: true,
+          },
+          {
+            href: "/dashboard/appointments",
+            label: "Ajanda",
+            mobileLabel: "Ajanda",
+            icon: Calendar,
             exact: false,
             showInBottomNav: true,
           },
           {
-            href: "/dashboard/staff",
-            label: "Personel",
-            icon: Users,
+            href: "/dashboard/appointments/new",
+            label: "Yeni Randevu",
+            mobileLabel: "Yeni Randevu",
+            icon: Plus,
             exact: false,
             showInBottomNav: true,
-          },
-          {
-            href: "/dashboard/customers",
-            label: "Müşteriler",
-            icon: User,
-            exact: false,
-            showInBottomNav: true,
-          },
-          {
-            href: "/dashboard/settings/booking",
-            label: "Randevu Kuralları",
-            icon: Settings,
-            exact: false,
-            showInBottomNav: false,
-          },
-          {
-            href: "/dashboard/settings/notifications",
-            label: "Bildirimler",
-            icon: BellRing,
-            exact: false,
-            showInBottomNav: false,
           },
         ]
-      : []),
-  ];
+      : [
+          {
+            href: "/dashboard",
+            label: "Genel Bakış",
+            mobileLabel: "Genel Bakış",
+            icon: LayoutDashboard,
+            exact: true,
+            showInBottomNav: true,
+          },
+          {
+            href: "/dashboard/appointments",
+            label: "Randevular",
+            mobileLabel: "Randevular",
+            icon: Calendar,
+            exact: false,
+            showInBottomNav: true,
+          },
+          ...(userRole === "OWNER" || userRole === "ADMIN"
+            ? [
+                {
+                  href: "/dashboard/services",
+                  label: "Hizmetler",
+                  mobileLabel: "Hizmetler",
+                  icon: Scissors,
+                  exact: false,
+                  showInBottomNav: true,
+                },
+                {
+                  href: "/dashboard/staff",
+                  label: "Personel",
+                  mobileLabel: "Personel",
+                  icon: Users,
+                  exact: false,
+                  showInBottomNav: true,
+                },
+                {
+                  href: "/dashboard/customers",
+                  label: "Müşteriler",
+                  mobileLabel: "Müşteriler",
+                  icon: User,
+                  exact: false,
+                  showInBottomNav: true,
+                },
+                {
+                  href: "/dashboard/settings/booking",
+                  label: "Randevu Kuralları",
+                  mobileLabel: "Randevu Kuralları",
+                  icon: Settings,
+                  exact: false,
+                  showInBottomNav: false,
+                },
+                {
+                  href: "/dashboard/settings/notifications",
+                  label: "Bildirimler",
+                  mobileLabel: "Bildirimler",
+                  icon: BellRing,
+                  exact: false,
+                  showInBottomNav: false,
+                },
+              ]
+            : []),
+        ];
 
   const isLinkActive = (href: string, exact: boolean) => {
     if (exact) {
@@ -359,9 +395,11 @@ export function DashboardShell({
             <span className="text-muted-foreground text-xs">•</span>
             <span className="text-xs text-muted-foreground">
               {pathname === "/dashboard"
-                ? "Genel Bakış"
+                ? (userRole === "STAFF" ? "Programım" : "Genel Bakış")
+                : pathname === "/dashboard/appointments/new"
+                ? "Yeni Randevu"
                 : pathname.startsWith("/dashboard/appointments")
-                ? "Randevular"
+                ? (userRole === "STAFF" ? "Ajanda" : "Randevular")
                 : pathname.startsWith("/dashboard/services")
                 ? "Hizmetler"
                 : pathname.startsWith("/dashboard/staff")
@@ -418,7 +456,7 @@ export function DashboardShell({
                 )}
               >
                 <Icon className={cn("h-5 w-5", active && "scale-110 transition-transform")} />
-                <span>{item.label}</span>
+                <span>{item.mobileLabel ?? item.label}</span>
               </Link>
             );
           })}

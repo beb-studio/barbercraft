@@ -257,6 +257,7 @@ export class StaffWorkspaceService {
           endTime: appointments.endTime,
           status: appointments.status,
           source: appointments.source,
+          updatedAt: appointments.updatedAt,
           serviceNameSnapshot: appointments.serviceNameSnapshot,
           serviceDurationSnapshot: appointments.serviceDurationSnapshot,
           customerFirstName: customers.firstName,
@@ -285,6 +286,7 @@ export class StaffWorkspaceService {
           startTime: appointments.startTime,
           endTime: appointments.endTime,
           status: appointments.status,
+          updatedAt: appointments.updatedAt,
           serviceNameSnapshot: appointments.serviceNameSnapshot,
           customerFirstName: customers.firstName,
           customerLastName: customers.lastName,
@@ -342,6 +344,7 @@ export class StaffWorkspaceService {
         localDate: startFormatted.dateStr,
         status: row.status,
         source: row.source,
+        updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : new Date(row.updatedAt).toISOString(),
         customer: {
           firstName: row.customerFirstName,
           lastName: row.customerLastName,
@@ -379,6 +382,7 @@ export class StaffWorkspaceService {
         localEndTime: nextEndFormatted.timeStr,
         localDate: nextStartFormatted.dateStr,
         status: nextRow.status,
+        updatedAt: nextRow.updatedAt instanceof Date ? nextRow.updatedAt.toISOString() : new Date(nextRow.updatedAt).toISOString(),
       };
     }
 

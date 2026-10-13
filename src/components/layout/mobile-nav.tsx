@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Calendar, LayoutDashboard, Settings, Scissors, Users } from "lucide-react";
+import { Calendar, LayoutDashboard, Settings, Scissors, Users, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface MobileNavProps {
@@ -15,17 +15,23 @@ export function MobileNav({ variant = "public", userRole }: MobileNavProps) {
   const pathname = usePathname();
 
   const navItems = variant === "dashboard"
-    ? [
-        { href: "/dashboard", label: "Genel Bakış", icon: LayoutDashboard },
-        { href: "/dashboard/appointments", label: "Randevular", icon: Calendar },
-        ...(userRole === "OWNER" || userRole === "ADMIN"
-          ? [
-              { href: "/dashboard/services", label: "Hizmetler", icon: Scissors },
-              { href: "/dashboard/staff", label: "Personel", icon: Users },
-            ]
-          : []),
-        { href: "/dashboard/settings", label: "Ayarlar", icon: Settings },
-      ]
+    ? (userRole === "STAFF"
+      ? [
+          { href: "/dashboard", label: "Bugün", icon: LayoutDashboard },
+          { href: "/dashboard/appointments", label: "Ajanda", icon: Calendar },
+          { href: "/dashboard/appointments/new", label: "Yeni Randevu", icon: Plus },
+        ]
+      : [
+          { href: "/dashboard", label: "Genel Bakış", icon: LayoutDashboard },
+          { href: "/dashboard/appointments", label: "Randevular", icon: Calendar },
+          ...(userRole === "OWNER" || userRole === "ADMIN"
+            ? [
+                { href: "/dashboard/services", label: "Hizmetler", icon: Scissors },
+                { href: "/dashboard/staff", label: "Personel", icon: Users },
+              ]
+            : []),
+          { href: "/dashboard/settings", label: "Ayarlar", icon: Settings },
+        ])
     : [
         { href: "/", label: "Randevu Al", icon: Calendar },
         { href: "/login", label: "Giriş Yap", icon: LayoutDashboard },

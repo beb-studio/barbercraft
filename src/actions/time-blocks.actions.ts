@@ -1,5 +1,15 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
+
+function safeRevalidatePath(path: string) {
+  try {
+    revalidatePath(path);
+  } catch {
+    // In standalone test environments, Next.js static generation store is not initialized
+  }
+}
+
 import { requireSession, requireAdminOrOwner, ForbiddenError } from "@/lib/auth/guards";
 import { getMemberships } from "@/lib/auth/session";
 import {
@@ -124,6 +134,8 @@ export async function createStaffTimeBlockAction(payload: CreateStaffTimeBlockPa
       user.id
     );
 
+    safeRevalidatePath("/dashboard");
+    safeRevalidatePath("/dashboard/appointments");
     return { success: true, block };
   } catch (error: unknown) {
     if (error instanceof Error) {
@@ -181,6 +193,8 @@ export async function updateStaffTimeBlockAction(payload: UpdateStaffTimeBlockPa
       user.id
     );
 
+    safeRevalidatePath("/dashboard");
+    safeRevalidatePath("/dashboard/appointments");
     return { success: true, block };
   } catch (error: unknown) {
     if (error instanceof Error) {
@@ -229,6 +243,8 @@ export async function deleteStaffTimeBlockAction(payload: DeleteStaffTimeBlockPa
       user.id
     );
 
+    safeRevalidatePath("/dashboard");
+    safeRevalidatePath("/dashboard/appointments");
     return { success: true, deletedId: result.deletedId };
   } catch (error: unknown) {
     if (error instanceof Error) {
