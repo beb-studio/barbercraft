@@ -75,6 +75,10 @@ export async function requeueTerminalOutboxAction(eventId: string) {
   try {
     const updated = await PlatformOperationsService.requeueTerminalOutbox(eventId);
     safeRevalidatePath("/platform");
+    safeRevalidatePath("/platform/businesses");
+    if (updated?.businessId) {
+      safeRevalidatePath(`/platform/businesses/${updated.businessId}`);
+    }
     return { success: true, data: updated };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Outbox kaydı yeniden sıraya alınamadı";
@@ -86,6 +90,10 @@ export async function requeueTerminalDeliveryAction(deliveryId: string) {
   try {
     const updated = await PlatformOperationsService.requeueTerminalDelivery(deliveryId);
     safeRevalidatePath("/platform");
+    safeRevalidatePath("/platform/businesses");
+    if (updated?.businessId) {
+      safeRevalidatePath(`/platform/businesses/${updated.businessId}`);
+    }
     return { success: true, data: updated };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Teslimat kaydı yeniden sıraya alınamadı";

@@ -50,8 +50,8 @@ export class PlatformOperationsService {
     callerAdmin?: PlatformAdminContext
   ) {
     const admin = callerAdmin ?? (await requirePlatformAdmin());
-    if (!reason || !reason.trim()) {
-      throw new PlatformOperationsError("İşletmeyi askıya almak için geçerli bir gerekçe belirtilmelidir.");
+    if (!reason || reason.trim().length < 5) {
+      throw new PlatformOperationsError("İşletmeyi askıya almak için geçerli bir gerekçe belirtilmelidir (en az 5 karakter).");
     }
     return PlatformOperationsRepository.setBusinessActiveState(
       businessId,
@@ -63,7 +63,7 @@ export class PlatformOperationsService {
 
   /**
    * Safe platform action to reactivate a suspended business.
-   * Rejects empty reason; logs append-only audit evidence.
+   * Rejects empty or short reason; logs append-only audit evidence.
    */
   static async reactivateBusiness(
     businessId: string,
@@ -71,8 +71,8 @@ export class PlatformOperationsService {
     callerAdmin?: PlatformAdminContext
   ) {
     const admin = callerAdmin ?? (await requirePlatformAdmin());
-    if (!reason || !reason.trim()) {
-      throw new PlatformOperationsError("İşletmeyi yeniden etkinleştirmek için geçerli bir gerekçe belirtilmelidir.");
+    if (!reason || reason.trim().length < 5) {
+      throw new PlatformOperationsError("İşletmeyi yeniden etkinleştirmek için geçerli bir gerekçe belirtilmelidir (en az 5 karakter).");
     }
     return PlatformOperationsRepository.setBusinessActiveState(
       businessId,

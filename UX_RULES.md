@@ -145,3 +145,27 @@ The application is engineered strictly **mobile-first**.
    - When no upcoming appointments remain for today, renders a calm reassuring empty state ("Bugün için başka randevunuz bulunmuyor.").
 5. **Accessible Base UI Dialogs**:
    - Status updates ("Tamamla", "Gelmedi", "İptal Et"), reschedule slot picking, and time block creation/deletion use accessible `@base-ui/react/alert-dialog` primitives with keyboard trapping, backdrop blur, explicit focus management, and descriptive Turkish alerts.
+
+---
+
+## 11. Platform Operations Console UX Rules (TASK 019B)
+
+1. **Command Center Information Hierarchy**:
+   - `/platform` anchors operational awareness with high-level system cards (İşletmeler, Aktif Üyeler ve Personel, Randevu Hacmi, Bildirim Altyapısı).
+   - Zero financial or revenue metrics are displayed.
+   - Recent businesses table provides fast operational access to newly onboarded tenants.
+2. **Tenant Operations Directory UX**:
+   - Search and health filter toolbar supports live query and status filtering (`Tümü`, `Sağlıklı`, `Dikkat Gerekiyor`, `Askıya Alınmış`).
+   - Responsive presentation: desktop ($\ge md$) renders an accessible data table; mobile ($< md$, 390px baseline) collapses into structured operational cards without horizontal scroll or clipping.
+   - Health badges prominently display deterministic health status along with diagnostic explanation reasons when attention or suspension is required.
+3. **Tenant Operations Detail Structure**:
+   - Organized into 8 distinct operational panels for clear cognitive hierarchy.
+   - Safe operational rosters display active owners and staff members without exposing customer PII or staff compensation.
+   - Appointment volume panel presents aggregated counts (Toplam, Son 30 Gün, Son 7 Gün, Bugün).
+   - Notification health clearly delineates between retryable and terminal failures.
+4. **Accessible Modal Workflows & Truthful Dialog Copy**:
+   - Lifecycle mutations (Askıya Al / Yeniden Aktif Et) and requeue operations utilize accessible `@base-ui/react/alert-dialog` primitives with visible focus rings and backdrop blur.
+   - All modal interactive controls satisfy the `min-h-[44px]` touch target guideline.
+   - Confirmation text truthfully details operational consequences: requeue only re-evaluates dispatch without altering appointment or customer data, and explicitly notes that delivery recovery may trigger a new SMS send attempt; suspension stops new public bookings while preserving data and active dashboard sessions; reactivation restores public booking accessibility per tenant settings without claiming internal operations were stopped.
+5. **Strict Turkish User-Facing Language**:
+   - 100% of user-facing UI labels, headers, badges, diagnostic explanations, empty states, and modal dialogs are presented in Turkish.

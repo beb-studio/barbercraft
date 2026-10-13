@@ -74,3 +74,11 @@ The color palette uses tailored `oklch` or hex values to represent a clean, high
 - **Lightweight Accessible Visualizations**: Clean CSS/SVG daily volume bars with stacked completion ratios and daily date labels. Includes an accessible data table toggle for auditing and assistive technology.
 - **Non-Revenue Semantic Honesty**: Booked service value is explicitly labeled "Tamamlanan Hizmet Tutarı" with subtitle and info tooltip clarifying it represents booked service value rather than collected cash.
 - **Role Isolation**: STAFF users receive a dedicated personal agenda view without business performance or financial metrics.
+
+## 11. Platform Operations Console & Command Center (TASK 019B)
+
+- **Light-First Utilitarian Operations Layout**: Clean, mission-critical operational interface tailored for platform operators. High information density without clutter, using crisp zinc borders, neutral card surfaces, and strong typography.
+- **Macro KPI Architecture**: Command center cards present high-level platform health metrics (İşletmeler, Aktif Üyeler ve Personel, Randevu Hacmi, Bildirim Kuyruğu & SMS Teslimatı) utilizing tabular numerals (`font-mono`) and clear status accents. Strictly avoids all financial, GMV, and revenue metrics.
+- **Explainable Health Indicators**: Deterministic pill badges (`Sağlıklı`: emerald, `Dikkat Gerekiyor`: amber, `Askıya Alınmış`: rose) with structured diagnostic reason lists detailing exact operational triggers.
+- **Responsive Tenant Directory & 390px Mobile Baseline**: Desktop renders an accessible data table; mobile viewports (< 768px, tested at 390px) collapse into structured operational cards without horizontal scrollbars or clipping.
+- **Accessible Base UI Dialog Workflows**: Requeue and lifecycle mutation dialogs feature accessible modal backdrops, visible focus outlines, truthful technical impact copy, and minimum 44px touch targets.
