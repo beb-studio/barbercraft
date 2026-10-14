@@ -33,15 +33,11 @@ describe("TASK 009B: Turkish Language & Presentation Standardization", () => {
       assert.equal(getRoleLabel("MANAGER"), "İşletme Yöneticisi");
       assert.equal(getRoleLabel("STAFF"), "Personel");
       assert.equal(getRoleLabel("CUSTOMER"), "Müşteri");
-      // Legacy backwards-compatibility
-      assert.equal(getRoleLabel("ADMIN"), "İşletme Yöneticisi");
     });
 
     it("maps platform admin roles to Turkish labels", () => {
       assert.equal(getPlatformRoleLabel("SUPER_ADMIN"), "Süper Yönetici");
       assert.equal(getPlatformRoleLabel("PLATFORM_ADMIN"), "Platform Yöneticisi");
-      // Legacy backwards-compatibility
-      assert.equal(getPlatformRoleLabel("ADMIN"), "Platform Yöneticisi");
     });
   });
 

@@ -37,9 +37,6 @@ export function isManagerOrOwner(role?: BusinessMemberRole | null): boolean {
   return role === MEMBER_ROLES.OWNER || role === MEMBER_ROLES.MANAGER;
 }
 
-/** Backward-compatible alias for isManagerOrOwner. */
-export const isAdminLevel = isManagerOrOwner;
-
 export function isStaff(role?: BusinessMemberRole | null): boolean {
   return role === MEMBER_ROLES.STAFF;
 }

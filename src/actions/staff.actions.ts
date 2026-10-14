@@ -350,7 +350,7 @@ export async function saveStaffWorkingHoursAction(payload: SaveStaffWorkingHours
       }
       if (error.name === "ForbiddenError") {
         const msg =
-          error.message === "MANAGER or OWNER role required" || error.message === "ADMIN or OWNER role required"
+          error.message === "MANAGER or OWNER role required"
             ? "Bu işlem için yetkiniz yok."
             : error.message || "Bu işlem için yetkiniz yok.";
         return { success: false as const, error: msg };

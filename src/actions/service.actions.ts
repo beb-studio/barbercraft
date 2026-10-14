@@ -123,7 +123,7 @@ export async function createFirstServiceAction(payload: CreateFirstServicePayloa
 
 /**
  * Resolves the authenticated business ID for service management.
- * Verifies that the user has an active membership and role OWNER or ADMIN.
+ * Verifies that the user has an active membership and role OWNER or MANAGER.
  */
 async function resolveAuthorizedBusiness(businessIdParam?: string): Promise<string> {
   await requireSession();

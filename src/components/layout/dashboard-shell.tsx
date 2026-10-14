@@ -49,7 +49,6 @@ export function DashboardShell({
       case "OWNER":
         return "İşletme Sahibi";
       case "MANAGER":
-      case "ADMIN":
         return "İşletme Yöneticisi";
       case "STAFF":
         return "Personel";

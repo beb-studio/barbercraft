@@ -32,7 +32,6 @@ export function getPlatformRoleLabel(role: PlatformAdminRole | string): string {
     case "SUPER_ADMIN":
       return "Süper Yönetici";
     case "PLATFORM_ADMIN":
-    case "ADMIN": // legacy migration compatibility fallback
       return "Platform Yöneticisi";
     default:
       return role;
@@ -47,7 +46,6 @@ export function getRoleLabel(role: BusinessMemberRole | string): string {
     case "OWNER":
       return "İşletme Sahibi";
     case "MANAGER":
-    case "ADMIN": // legacy migration compatibility fallback
       return "İşletme Yöneticisi";
     case "STAFF":
       return "Personel";

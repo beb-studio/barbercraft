@@ -390,7 +390,7 @@ export async function getDuplicateCandidatesAction(businessIdParam?: string) {
       targetBusinessId = matched.business_id;
     }
 
-    // Strictly OWNER and ADMIN only
+    // Strictly OWNER and MANAGER only
     await requireManagerOrOwner(targetBusinessId);
 
     const candidates = await CustomerRepository.getDuplicateCandidates(targetBusinessId);

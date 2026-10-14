@@ -174,7 +174,7 @@ export async function toggleStaffMemberActive(
   active: boolean
 ) {
   return await db.transaction(async (tx) => {
-    // Only update if role is STAFF (enforces DB safety against modifying OWNER/ADMIN)
+    // Only update if role is STAFF (enforces DB safety against modifying OWNER/MANAGER)
     const [updatedMember] = await tx
       .update(businessMembers)
       .set({
