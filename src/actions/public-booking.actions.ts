@@ -5,6 +5,7 @@ import {
   PublicStaff,
   PublicAvailabilitySlot,
 } from "@/services/public-booking.service";
+import { checkRateLimit, getClientIp, hashIdentifier } from "@/lib/rate-limit";
 
 export async function getEligibleStaffAction(
   slug: string,
@@ -46,6 +47,16 @@ export async function getPublicAvailabilityAction(params: {
       return { success: false, error: "Geçersiz istek parametreleri." };
     }
 
+    const ip = await getClientIp();
+    const rateLimit = await checkRateLimit({
+      key: `public:availability:${hashIdentifier(ip)}`,
+      limit: 120,
+      windowSeconds: 60,
+    });
+    if (!rateLimit.success) {
+      return { success: false, error: "Çok fazla istek yapıldı. Lütfen biraz bekleyin." };
+    }
+
     const result = await PublicBookingService.getPublicAvailability({
       slug,
       serviceId,
@@ -81,6 +92,16 @@ export async function getPublicAnyStaffAvailabilityAction(params: {
     const { slug, serviceId, localDate } = params;
     if (!slug || !serviceId || !localDate) {
       return { success: false, error: "Geçersiz istek parametreleri." };
+    }
+
+    const ip = await getClientIp();
+    const rateLimit = await checkRateLimit({
+      key: `public:availability:${hashIdentifier(ip)}`,
+      limit: 120,
+      windowSeconds: 60,
+    });
+    if (!rateLimit.success) {
+      return { success: false, error: "Çok fazla istek yapıldı. Lütfen biraz bekleyin." };
     }
 
     const result = await PublicBookingService.getPublicAnyStaffAvailability({
@@ -128,6 +149,20 @@ export async function createPublicAppointmentAction(params: {
   customerPhone: string;
 }): Promise<CreatePublicAppointmentResult> {
   try {
+    const ip = await getClientIp();
+    const rateLimit = await checkRateLimit({
+      key: `public:create-booking:${hashIdentifier(ip)}`,
+      limit: 60,
+      windowSeconds: 600,
+    });
+    if (!rateLimit.success) {
+      return {
+        success: false,
+        type: "VALIDATION_ERROR",
+        error: "Çok fazla randevu talebinde bulundunuz. Lütfen birkaç dakika sonra tekrar deneyin.",
+      };
+    }
+
     const confirmation = await PublicBookingService.createPublicAppointment(params);
     return { success: true, data: confirmation };
   } catch (error) {

@@ -321,6 +321,19 @@ The business analytics domain operates as a strictly read-only query layer over 
   - Analytics operations issue only `SELECT` queries. No writes, updates, locks, or side-effects are generated.
   - Zero N+1 queries; execution time remains bounded and sub-50ms even across hundreds of historical appointments.
 
+### 3.17 Multi-Process Rate Limits (TASK 020A)
+
+- Table: `rate_limits`
+- Columns:
+  - `key`: `varchar(255)` PRIMARY KEY (Anonymized action and IP identifier hash).
+  - `points`: `integer` NOT NULL DEFAULT 0 (Accumulated request points within the current time window).
+  - `expire_at`: `timestamp with time zone` NOT NULL (Window expiration instant).
+- Indexes:
+  - `rate_limits_expire_at_idx`: `(expire_at)` for efficient background cleanup of expired rate limit windows.
+- Concurrency & Atomicity:
+  - Updates occur via atomic PostgreSQL upsert (`INSERT INTO rate_limits (key, points, expire_at) VALUES (...) ON CONFLICT (key) DO UPDATE SET points = ..., expire_at = ... RETURNING ...`).
+  - Ensures multi-process safety without race conditions across multiple application server instances.
+
 ---
 
 ## 4. Database Triggers & Functions
@@ -332,3 +345,30 @@ The business analytics domain operates as a strictly read-only query layer over 
 6. `enforce_customer_merge_one_hop()`: Deferred constraint trigger that rejects aliases targeting aliases and canonical rows that still have inbound aliases when they become aliases.
 7. `set_notification_outbox_updated_at`: Applies the shared `set_updated_at()` function to every outbox state/lease mutation.
 8. `set_notification_deliveries_updated_at`: Applies the shared `set_updated_at()` function to every delivery state/lease mutation.
+
+---
+
+## 5. Operational Database Management & Lifecycle (TASK 020B)
+
+### 5.1 Connection Pooling & Sizing
+- Configured in `src/db/index.ts` using `pg.Pool`.
+- `max`: Configurable via `DB_POOL_MAX` (defaults to 10 connections per container).
+- `idleTimeoutMillis`: 30,000ms (closes inactive connections).
+- `connectionTimeoutMillis`: 5,000ms (fast-fails when pool or database is exhausted).
+
+### 5.2 Health Verification & Process Teardown
+- `checkDatabaseHealth(timeoutMs)`: Executes a bounded `SELECT 1` query to verify database readiness. Fails fast if the query exceeds the timeout threshold.
+- `closeDatabasePool()`: Cleanly drains connection pools on process termination (`SIGTERM`, `SIGINT`), preventing connection leaks in PostgreSQL.
+
+### 5.3 Standalone Migrations
+- Executed via `scripts/migrate.ts` (`pnpm db:migrate`).
+- Uses `drizzle-orm/node-postgres/migrator` to apply versioned migrations from `drizzle/migrations/` sequentially.
+- Decoupled from application runtime startup to prevent concurrent migration deadlocks in multi-instance deployments.
+
+### 5.4 Backup & Disaster Recovery Tooling
+- `scripts/backup/backup.sh`: Streaming compressed logical dump (`pg_dump | gzip -9`) with `0600` permissions and automated 7-day retention pruning.
+- `scripts/backup/restore.sh`: Safe decompression restore with manual target confirmation interlock.
+- RPO Design Target: ≤ 1 hour (achieved when operator configures hourly backup schedule). RTO Design Target: ≤ 15 minutes.
+
+### 5.5 Rate Limit Housekeeping
+- `cleanupExpiredRateLimits(referenceNow)`: Deletes rows where `expire_at < referenceNow` from `rate_limits`. Executed automatically every 60 seconds by the background notification worker.

@@ -643,3 +643,51 @@ drizzle/
   - Platform console routes and client components contain zero customer PII (no customer names, phone numbers, emails, addresses, CRM notes, or appointment notes).
   - Zero impersonation capabilities: Architecture provides no "Login as Owner" or tenant switching tokens, preserving complete tenant isolation.
   - Zero financial / revenue / GMV metrics are displayed anywhere in the platform operations views.
+
+### 3.31 Application Security Hardening (TASK 020A)
+
+- **Administrative User Provisioning vs. Public Registration**:
+  - Better Auth is configured with `disableSignUp: true`, permanently disabling public self-registration endpoints (`/api/auth/sign-up/email`) and browser-accessible signup forms.
+  - Trusted server-side administrative user provisioning is implemented in `createAdministrativeUser` (`src/lib/auth/admin-user.ts`). It directly utilizes Better Auth's internal adapter (`internalAdapter.createUser` and `internalAdapter.linkAccount`) paired with Argon2id password hashing.
+  - This architecture permits authorized platform administrators, business onboarding workflows, and staff management to provision tenant users, while preserving complete protection against public unauthorized registration.
+- **Multi-Process Atomic Rate Limiting**:
+  - Multi-process safe, database-backed rate limiting utilizes a dedicated `rate_limits` table with PostgreSQL upsert (`INSERT ... ON CONFLICT (key) DO UPDATE`) returning remaining window duration, eliminating race conditions across multiple server instances.
+  - Rate limiting protects public appointment booking (`createPublicAppointmentAction`: 60 requests / 10 minutes), capability resolution (`resolveAppointmentAccessAction`: 120 requests / 10 minutes), and authentication sign-in attempts (`/api/auth/sign-in/email`: 10 attempts / 15 minutes).
+  - Client identifiers are SHA-256 hashed (`hashIdentifier`), and reverse proxy headers (`x-forwarded-for`, `x-real-ip`) are safely parsed, ensuring client privacy and compliance with data protection standards.
+- **Browser Security Headers & Content Security Policy (CSP)**:
+  - Configured in `next.config.ts` across all routes:
+    - `Content-Security-Policy`: Restricts scripts, styles, fonts, connections, and images to `'self'` and trusted origins, with `frame-ancestors 'none'` preventing iframe embedding.
+    - `X-Frame-Options: DENY`: Global clickjacking protection.
+    - `X-Content-Type-Options: nosniff`: Prevents MIME-sniffing attacks.
+    - `Referrer-Policy: strict-origin-when-cross-origin`: Controls referrer leakage, with `/randevu` enforcing `no-referrer` to guard capability tokens.
+    - `Permissions-Policy`: Explicitly disables sensitive browser features (camera, microphone, geolocation, payment).
+    - `Strict-Transport-Security`: Enforces HTTPS in production (`max-age=63072000; includeSubDomains; preload`).
+    - Anti-Caching Headers: Enforced on all authenticated operational routes (`/dashboard/:path*`, `/platform/:path*`, `/onboarding/:path*`, `/randevu/:path*`) via `Cache-Control: no-store, no-cache, must-revalidate, proxy-revalidate`.
+- **Sensitive Data Redaction & Client Error Sanitization**:
+  - `sanitizeClientError` (`src/lib/redact.ts`) scrubs internal database errors, SQLSTATE codes, table names, constraint details, and stack traces before returning user-facing Turkish messages.
+  - `redactSensitiveData` and `redactUrlCredentials` scrub sensitive secrets (passwords, tokens, database credentials) from application server logs.
+- **Production Environment Validation**:
+  - `assertProductionEnvironment` (`src/lib/env.ts`) performs strict startup validation, verifying required production secrets and rejecting insecure defaults and placeholders.
+
+### 3.32 Production Deployment & Operational Architecture (TASK 020B)
+
+- **Standalone Production Server**:
+  - Next.js is configured with `output: "standalone"`, compiling to an optimized container-ready Node.js runtime (`.next/standalone/server.js`).
+  - Completely self-hosted architecture with zero managed cloud locks (no Vercel, Supabase, Neon, Firebase, or Railway runtime dependencies).
+- **Decoupled Background Notification Worker**:
+  - Runs as an independent process daemon (`scripts/worker.ts` executing `NotificationWorker`).
+  - Decoupled from the HTTP server process to protect web request latency and ensure reliable asynchronous execution.
+  - Utilizes PostgreSQL `FOR UPDATE SKIP LOCKED` for concurrent batch processing of pending outbox events and due SMS deliveries across multiple worker instances.
+  - Implements terminal failure isolation (`PERMANENT_DELIVERY_ERROR_CODES`, 8-attempt ceiling) and periodic database rate limit window pruning.
+  - Traps `SIGTERM`/`SIGINT` for graceful shutdown, completing in-flight dispatches within a 15s deadline.
+- **Health Probes Architecture**:
+  - `/api/health`: Unauthenticated liveness probe returning 200 `{ status: "ok" }` with uptime and timestamp. Exposes zero database queries or secrets.
+  - `/api/ready`: Readiness probe validating environment integrity and executing a bounded `SELECT 1` query (`checkDatabaseHealth(3000)`). Returns 200 or 503 without leaking stack traces.
+- **Edge Reverse Proxy & Network Trust Contract**:
+  - Reference Caddy (`Caddyfile`) and Nginx (`nginx.conf`) configurations terminate TLS at the network perimeter.
+  - Strict header overwriting guarantees `X-Real-IP` is populated from the incoming TCP socket (`$remote_addr`), completely eliminating IP spoofing vectors for rate limiting.
+- **Backup & Disaster Recovery Tooling**:
+  - Streaming compressed logical backups (`scripts/backup/backup.sh`) with strict `0600` permissions and automated 7-day retention pruning.
+  - Safe restoration (`scripts/backup/restore.sh`) with manual confirmation barrier.
+  - Non-destructive automated verification drills (`scripts/backup/verify-restore.sh`) testing restore integrity against temporary databases.
+  - Recovery objectives: RPO ≤ 1 hour, RTO ≤ 15 minutes.

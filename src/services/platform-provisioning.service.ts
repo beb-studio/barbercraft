@@ -1,9 +1,9 @@
 import { db } from "@/db";
 import { users, businesses, businessMembers } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { auth } from "@/lib/auth/auth";
 import { generateSecurePassword } from "@/utils/password";
 import { PlatformAdminRepository } from "@/repositories/platform-admin.repository";
+import { createAdministrativeUser } from "@/lib/auth/admin-user";
 
 export interface ProvisionBusinessInput {
   name: string;
@@ -19,54 +19,50 @@ export interface ProvisionBusinessInput {
 export class PlatformProvisioningService {
   static async provisionBusiness(input: ProvisionBusinessInput) {
     const { name, slug, timezone, currency, ownerEmail, ownerName, platformAdminId, actorUserId } = input;
+    const normalizedEmail = ownerEmail.toLowerCase().trim();
 
     // Check if user exists
     const [existingUser] = await db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.email, ownerEmail.toLowerCase().trim()))
+      .where(eq(users.email, normalizedEmail))
       .limit(1);
 
     let userId = existingUser?.id;
     let tempPassword = null;
     let createdNewUser = false;
 
-    // 1. Create User via Better Auth if doesn't exist
+    // 1. Create User via Better Auth administrative helper if doesn't exist
     if (!userId) {
       tempPassword = generateSecurePassword(16);
       try {
-        const response = await auth.api.signUpEmail({
-          body: {
-            email: ownerEmail.toLowerCase().trim(),
-            password: tempPassword,
-            name: ownerName,
-          },
-          asResponse: true,
+        const newUser = await createAdministrativeUser({
+          email: normalizedEmail,
+          password: tempPassword,
+          name: ownerName,
+          emailVerified: true,
         });
-        
-        if (!response || !response.ok) {
-          throw new Error("Failed to create user via Better Auth");
-        }
-        
-        // Fetch the newly created user from DB
-        const [newUser] = await db
-          .select({ id: users.id })
-          .from(users)
-          .where(eq(users.email, ownerEmail.toLowerCase().trim()))
-          .limit(1);
-          
-        if (!newUser) {
-          throw new Error("User was created but could not be found in DB");
-        }
-        
+
         userId = newUser.id;
         createdNewUser = true;
 
         // Force password change on next login
         await db.update(users).set({ forcePasswordChange: true }).where(eq(users.id, userId));
-
       } catch (error) {
-        throw new Error(`User provisioning failed: ${error instanceof Error ? error.message : String(error)}`);
+        // Concurrency check: If user creation failed, verify if another concurrent request created the identity
+        const [concurrentUser] = await db
+          .select({ id: users.id })
+          .from(users)
+          .where(eq(users.email, normalizedEmail))
+          .limit(1);
+
+        if (concurrentUser) {
+          userId = concurrentUser.id;
+          createdNewUser = false;
+          tempPassword = null;
+        } else {
+          throw new Error(`User provisioning failed: ${error instanceof Error ? error.message : String(error)}`);
+        }
       }
     }
 

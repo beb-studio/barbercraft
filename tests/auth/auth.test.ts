@@ -28,24 +28,34 @@ after(async () => {
 
 describe("Authentication & RBAC Tests", () => {
   let createdUserId = "";
-  
-  it("registers a new user successfully", async () => {
+
+  before(async () => {
+    const { createAdministrativeUser } = await import("../../src/lib/auth/admin-user");
+    const user = await createAdministrativeUser({
+      email: "test@example.com",
+      password: "password123",
+      name: "Test User",
+      emailVerified: true,
+    });
+    createdUserId = user.id;
+  });
+
+  it("rejects public self-registration with 400 (disableSignUp: true)", async () => {
     const req = new Request("http://localhost:3000/api/auth/sign-up/email", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        email: "test@example.com",
+        email: "unauthorized-registration@example.com",
         password: "password123",
-        name: "Test User",
+        name: "Unauthorized User",
       }),
     });
     const res = await auth.handler(req);
-    assert.equal(res.status, 200);
+    assert.equal(res.status, 400);
     const body = await res.json();
-    assert.ok(body.user?.id);
-    createdUserId = body.user.id;
+    assert.equal(body.code, "EMAIL_PASSWORD_SIGN_UP_DISABLED");
   });
 
   it("fails to register with a duplicate email safely", async () => {
@@ -105,23 +115,21 @@ describe("Role Resolution & Guards", () => {
   let businessB = "00000000-0000-4000-8000-000000000101";
 
   before(async () => {
-    const res1 = await auth.api.signUpEmail({
-      body: { email: "owner@test.local", password: "password123", name: "O" },
-      asResponse: false
+    const { createAdministrativeUser } = await import("../../src/lib/auth/admin-user");
+    const res1 = await createAdministrativeUser({
+      email: "owner@test.local", password: "password123", name: "O", emailVerified: true
     });
-    user1 = res1.user.id;
+    user1 = res1.id;
 
-    const res2 = await auth.api.signUpEmail({
-      body: { email: "staff@test.local", password: "password123", name: "S" },
-      asResponse: false
+    const res2 = await createAdministrativeUser({
+      email: "staff@test.local", password: "password123", name: "S", emailVerified: true
     });
-    user2 = res2.user.id;
+    user2 = res2.id;
 
-    const res3 = await auth.api.signUpEmail({
-      body: { email: "admin@test.local", password: "password123", name: "A" },
-      asResponse: false
+    const res3 = await createAdministrativeUser({
+      email: "admin@test.local", password: "password123", name: "A", emailVerified: true
     });
-    user3 = res3.user.id;
+    user3 = res3.id;
 
     await db.execute(`INSERT INTO businesses (id, name, slug, timezone, currency) VALUES ('${businessA}', 'Biz A', 'biz-a', 'UTC', 'TRY')`);
     await db.execute(`INSERT INTO businesses (id, name, slug, timezone, currency) VALUES ('${businessB}', 'Biz B', 'biz-b', 'UTC', 'TRY')`);

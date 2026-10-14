@@ -1,5 +1,6 @@
 import { db } from "@/db";
 import { auth } from "@/lib/auth/auth";
+import { createAdministrativeUser } from "@/lib/auth/admin-user";
 import {
   users,
   platformAdmins,
@@ -94,22 +95,15 @@ async function getOrCreateUser(
     return { id: existing.id, email: existing.email, name: existing.name };
   }
 
-  // Use official Better Auth account creation mechanism
-  const res = await auth.api.signUpEmail({
-    body: {
-      email: normalizedEmail,
-      password,
-      name,
-    },
-    asResponse: false,
+  // Use trusted Better Auth administrative account creation mechanism
+  const created = await createAdministrativeUser({
+    email: normalizedEmail,
+    password,
+    name,
+    emailVerified: true,
   });
 
-  await db
-    .update(users)
-    .set({ emailVerified: true, updatedAt: new Date() })
-    .where(eq(users.id, res.user.id));
-
-  return { id: res.user.id, email: res.user.email, name: res.user.name };
+  return { id: created.id, email: created.email, name: created.name };
 }
 
 /**
