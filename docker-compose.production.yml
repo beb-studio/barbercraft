@@ -1,0 +1,140 @@
+# ==============================================================================
+# BarberCraft Reference Production Docker Compose
+# Architecture:
+#   Reverse Proxy (Caddy) -> Next.js Application -> PostgreSQL 16
+#   Background Worker (Notification Worker) -> same PostgreSQL -> Netgsm
+#
+# INVARIANTS:
+# - Application port (3000) and Database port (5432) are NEVER published to host.
+# - Only Reverse Proxy publishes ports 80 and 443 externally.
+# - Migrator runs once before app and worker startup.
+# - All services communicate over private internal network.
+# ==============================================================================
+
+services:
+  # ----------------------------------------------------------------------------
+  # 1. Reverse Proxy: Caddy (Automatic HTTPS, TLS Termination, Header Passing)
+  # ----------------------------------------------------------------------------
+  proxy:
+    image: caddy:2-alpine
+    container_name: barbercraft_proxy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - barbercraft_net
+
+  # ----------------------------------------------------------------------------
+  # 2. Database Migrator: Explicit, one-shot migration runner
+  # ----------------------------------------------------------------------------
+  migrator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: barbercraft_migrator
+    restart: "no"
+    command: ["npx", "tsx", "scripts/migrate.ts"]
+    env_file:
+      - .env.production
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - barbercraft_net
+
+  # ----------------------------------------------------------------------------
+  # 3. Next.js Web Application: Standalone production server
+  # ----------------------------------------------------------------------------
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: barbercraft_app
+    restart: unless-stopped
+    command: ["node", "server.js"]
+    env_file:
+      - .env.production
+    environment:
+      PORT: 3000
+      HOSTNAME: "0.0.0.0"
+      NODE_ENV: production
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    depends_on:
+      db:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
+    networks:
+      - barbercraft_net
+
+  # ----------------------------------------------------------------------------
+  # 4. Background Notification Worker: Polling, reminder dispatch, housekeeping
+  # ----------------------------------------------------------------------------
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: barbercraft_worker
+    restart: unless-stopped
+    command: ["npx", "tsx", "scripts/worker.ts"]
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+    depends_on:
+      db:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
+    networks:
+      - barbercraft_net
+
+  # ----------------------------------------------------------------------------
+  # 5. PostgreSQL 16 Database: Self-hosted relational storage
+  # ----------------------------------------------------------------------------
+  db:
+    image: postgres:16-alpine
+    container_name: barbercraft_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-barbercraft_prod}
+      POSTGRES_USER: ${POSTGRES_USER:-barbercraft}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Database password must be set}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-barbercraft} -d $${POSTGRES_DB:-barbercraft_prod}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - barbercraft_net
+
+# ------------------------------------------------------------------------------
+# Private Networks & Persistent Volumes
+# ------------------------------------------------------------------------------
+networks:
+  barbercraft_net:
+    driver: bridge
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:
+  backups:

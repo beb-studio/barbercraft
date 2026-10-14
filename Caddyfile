@@ -1,0 +1,29 @@
+# ==============================================================================
+# BarberCraft Reference Reverse Proxy: Caddyfile
+# Automatic HTTPS via Let's Encrypt, HTTP-to-HTTPS redirect, trusted header passing.
+# ==============================================================================
+
+{$APP_DOMAIN:localhost} {
+    # Response compression
+    encode gzip zstd
+
+    # Request body limit (10MB)
+    request_body {
+        max_size 10MB
+    }
+
+    # Proxy to private application container
+    reverse_proxy app:3000 {
+        # Trusted Proxy Header Contract: Overwrite client headers with verified remote socket values
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+
+        # Bounded transport timeouts
+        transport http {
+            dial_timeout 5s
+            response_header_timeout 30s
+        }
+    }
+}

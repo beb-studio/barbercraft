@@ -13,12 +13,14 @@
     "db:types": "node tests/database/generate-types.mjs",
     "platform-admin:grant": "tsx --conditions react-server scripts/platform-admin-cli.ts grant",
     "platform-admin:list": "tsx --conditions react-server scripts/platform-admin-cli.ts list",
-    "qa:bootstrap": "tsx --conditions react-server scripts/qa-bootstrap.ts"
+    "qa:bootstrap": "tsx --conditions react-server scripts/qa-bootstrap.ts",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "worker:start": "tsx scripts/worker.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
     "@better-fetch/fetch": "^1.3.2",
-    "better-auth": "^1.7.7",
+    "better-auth": "1.7.7",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cn": "^0.4.0",

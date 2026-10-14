@@ -668,3 +668,26 @@ drizzle/
   - `redactSensitiveData` and `redactUrlCredentials` scrub sensitive secrets (passwords, tokens, database credentials) from application server logs.
 - **Production Environment Validation**:
   - `assertProductionEnvironment` (`src/lib/env.ts`) performs strict startup validation, verifying required production secrets and rejecting insecure defaults and placeholders.
+
+### 3.32 Production Deployment & Operational Architecture (TASK 020B)
+
+- **Standalone Production Server**:
+  - Next.js is configured with `output: "standalone"`, compiling to an optimized container-ready Node.js runtime (`.next/standalone/server.js`).
+  - Completely self-hosted architecture with zero managed cloud locks (no Vercel, Supabase, Neon, Firebase, or Railway runtime dependencies).
+- **Decoupled Background Notification Worker**:
+  - Runs as an independent process daemon (`scripts/worker.ts` executing `NotificationWorker`).
+  - Decoupled from the HTTP server process to protect web request latency and ensure reliable asynchronous execution.
+  - Utilizes PostgreSQL `FOR UPDATE SKIP LOCKED` for concurrent batch processing of pending outbox events and due SMS deliveries across multiple worker instances.
+  - Implements terminal failure isolation (`PERMANENT_DELIVERY_ERROR_CODES`, 8-attempt ceiling) and periodic database rate limit window pruning.
+  - Traps `SIGTERM`/`SIGINT` for graceful shutdown, completing in-flight dispatches within a 15s deadline.
+- **Health Probes Architecture**:
+  - `/api/health`: Unauthenticated liveness probe returning 200 `{ status: "ok" }` with uptime and timestamp. Exposes zero database queries or secrets.
+  - `/api/ready`: Readiness probe validating environment integrity and executing a bounded `SELECT 1` query (`checkDatabaseHealth(3000)`). Returns 200 or 503 without leaking stack traces.
+- **Edge Reverse Proxy & Network Trust Contract**:
+  - Reference Caddy (`Caddyfile`) and Nginx (`nginx.conf`) configurations terminate TLS at the network perimeter.
+  - Strict header overwriting guarantees `X-Real-IP` is populated from the incoming TCP socket (`$remote_addr`), completely eliminating IP spoofing vectors for rate limiting.
+- **Backup & Disaster Recovery Tooling**:
+  - Streaming compressed logical backups (`scripts/backup/backup.sh`) with strict `0600` permissions and automated 7-day retention pruning.
+  - Safe restoration (`scripts/backup/restore.sh`) with manual confirmation barrier.
+  - Non-destructive automated verification drills (`scripts/backup/verify-restore.sh`) testing restore integrity against temporary databases.
+  - Recovery objectives: RPO ≤ 1 hour, RTO ≤ 15 minutes.

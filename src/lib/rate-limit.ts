@@ -23,27 +23,70 @@ export function hashIdentifier(id: string, salt: string = "rate-limit"): string 
   return crypto.createHash("sha256").update(`${salt}:${id}`).digest("hex");
 }
 
+function isValidIpFormat(ip: string): boolean {
+  const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}$/;
+  const ipv6Regex = /^[0-9a-fA-F:]+$/;
+  return ipv4Regex.test(ip) || ipv6Regex.test(ip);
+}
+
 /**
- * Extracts client IP address safely from Next.js request headers.
- * Falls back safely if executed outside request scope (e.g. tests, CLI).
+ * Extracts client IP address safely according to the trusted reverse proxy contract.
+ *
+ * TRUSTED PROXY CONTRACT:
+ * In production, BarberCraft runs in a private internal container network behind
+ * a reference reverse proxy (Caddy / Nginx). The reverse proxy terminates TLS,
+ * overwrites `X-Real-IP` with the direct peer remote IP ($remote_addr), and strips
+ * or normalizes `X-Forwarded-For`.
+ * The application prioritizes `X-Real-IP` (which cannot be forged if the reverse proxy overwrites it)
+ * followed by the client entry of `X-Forwarded-For`.
  */
 export async function getClientIp(): Promise<string> {
   try {
     const { headers } = await import("next/headers");
     const headerList = await headers();
+
+    // 1. Prefer X-Real-IP set/overwritten by trusted reverse proxy
+    const realIp = headerList.get("x-real-ip");
+    if (realIp && isValidIpFormat(realIp.trim())) {
+      return realIp.trim();
+    }
+
+    // 2. Fall back to X-Forwarded-For client entry
     const forwardedFor = headerList.get("x-forwarded-for");
     if (forwardedFor) {
-      return forwardedFor.split(",")[0].trim();
-    }
-    const realIp = headerList.get("x-real-ip");
-    if (realIp) {
-      return realIp.trim();
+      const clientIp = forwardedFor.split(",")[0].trim();
+      if (isValidIpFormat(clientIp)) {
+        return clientIp;
+      }
     }
   } catch {
     // Request scope unavailable (e.g. tests or direct service invocation)
   }
   return "127.0.0.1";
 }
+
+/**
+ * Cleans up expired rate limiting windows from the database.
+ * Executed periodically by background housekeeping.
+ */
+export async function cleanupExpiredRateLimits(referenceNow: Date = new Date()): Promise<number> {
+  try {
+    const result = await db.execute<{ count: string }>(sql`
+      WITH deleted AS (
+        DELETE FROM rate_limits
+        WHERE expires_at < ${referenceNow}
+        RETURNING 1
+      )
+      SELECT COUNT(*)::text AS count FROM deleted;
+    `);
+    const count = parseInt(result.rows[0]?.count || "0", 10);
+    return isNaN(count) ? 0 : count;
+  } catch (err) {
+    console.error("Failed to clean up expired rate limits:", err instanceof Error ? err.message : String(err));
+    return 0;
+  }
+}
+
 
 /**
  * Multi-process database-backed rate limiter.

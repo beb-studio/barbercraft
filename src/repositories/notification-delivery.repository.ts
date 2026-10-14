@@ -18,8 +18,10 @@ import {
 import {
   NOTIFICATION_DELIVERY_LEASE_MS,
   NOTIFICATION_DELIVERY_MAX_ATTEMPTS,
+  PERMANENT_DELIVERY_ERROR_CODES,
   type ClaimedNotificationDelivery,
 } from "@/lib/notification-delivery";
+
 
 function asDate(value: Date | string): Date {
   return value instanceof Date ? value : new Date(value);
@@ -136,9 +138,11 @@ export const NotificationDeliveryRepository = {
           WHERE attempt_count < ${NOTIFICATION_DELIVERY_MAX_ATTEMPTS}
             AND available_at <= ${input.referenceNow}
             AND (
-              status IN ('PENDING', 'FAILED')
+              status = 'PENDING'
+              OR (status = 'FAILED' AND (last_error_code IS NULL OR last_error_code NOT IN (${sql.join(PERMANENT_DELIVERY_ERROR_CODES.map((c) => sql`${c}`), sql`, `)})))
               OR (status = 'PROCESSING' AND locked_at <= ${staleBefore})
             )
+
           ORDER BY available_at ASC, created_at ASC, id ASC
           FOR UPDATE SKIP LOCKED
           LIMIT ${input.batchSize}

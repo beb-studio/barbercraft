@@ -116,9 +116,12 @@ before(async () => {
   ]);
 
   // Seed Today's Appointment
-  const todayNow = new Date();
-  const startAt = new Date(todayNow.getTime() + 3600000); // 1 hour ahead
-  const endAt = new Date(startAt.getTime() + 45 * 60000);
+  const { getBusinessLocalToday, parseDateTimeInBusinessTimezone } = await import(
+    "../../src/lib/timezone"
+  );
+  const todayStr = getBusinessLocalToday("Europe/Istanbul");
+  const startAt = parseDateTimeInBusinessTimezone(todayStr, "14:00", "Europe/Istanbul");
+  const endAt = parseDateTimeInBusinessTimezone(todayStr, "14:45", "Europe/Istanbul");
 
   await db.insert(schema.appointments).values([
     {

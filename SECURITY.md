@@ -197,9 +197,22 @@ const securityHeaders = [
 
 ---
 
-## 8. Residual Risks & Next Phase (TASK 020B)
+## 8. Operational Security & Hardening (TASK 020B)
 
-While application-layer security is fully hardened, the following operational requirements are addressed in TASK 020B:
-1. **Network Layer**: Reverse proxy TLS termination (Nginx / Cloudflare), edge DDoS mitigation, and firewall rules.
-2. **Database Operations**: Automated daily backups, point-in-time recovery (WAL archiving), and connection pool sizing.
-3. **Runtime Monitoring**: Health check probes (`/api/health`), PM2 process clustering, and log shipping.
+Operational security is fully implemented and verified:
+1. **Edge Reverse Proxy & IP Spoofing Prevention**:
+   - Reverse proxy (Caddy / Nginx) terminates TLS and strictly overwrites `X-Real-IP` and `X-Forwarded-For` with the incoming client IP `$remote_addr`.
+   - `getClientIp()` in `src/lib/rate-limit.ts` prioritizes `X-Real-IP` and validates IP format to prevent header injection or spoofing attacks.
+2. **Health Probes Security**:
+   - `/api/health` exposes zero system secrets, environment details, or database states (unauthenticated, 0 DB queries).
+   - `/api/ready` validates database connectivity via bounded `SELECT 1` without leaking stack traces or schema info on failure.
+   - Both endpoints enforce `Cache-Control: no-store, no-cache, must-revalidate`.
+3. **Database Security & Connection Limits**:
+   - Connection pool bounds are strictly enforced (`DB_POOL_MAX=10`, 5s connection timeout, 30s idle timeout) to prevent connection starvation attacks.
+   - Standalone migrations (`scripts/migrate.ts`) execute via isolated administrative tasks.
+4. **Worker Security & Concurrency Safety**:
+   - Notification worker claims records via PostgreSQL `FOR UPDATE SKIP LOCKED`, preventing double-dispatch race conditions.
+   - Terminal failure filtering (`claimDueDeliveryBatch`) prevents poisoned rows from consuming processing cycles.
+5. **Secure Backup & Disaster Recovery**:
+   - Backup files created via `scripts/backup/backup.sh` are restricted to `0600` permissions.
+   - Non-destructive drill (`scripts/backup/verify-restore.sh`) isolates restore testing in ephemeral databases.
