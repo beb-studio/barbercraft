@@ -6,7 +6,7 @@
 # ------------------------------------------------------------------------------
 # 1. Base Stage: Node.js runtime with pnpm package manager
 # ------------------------------------------------------------------------------
-FROM node:20-alpine AS base
+FROM node:22-alpine AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable && corepack prepare pnpm@11.12.0 --activate
@@ -39,7 +39,7 @@ RUN pnpm build
 # ------------------------------------------------------------------------------
 # 4. Runner Stage: Hardened, minimal non-root production container
 # ------------------------------------------------------------------------------
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production

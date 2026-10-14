@@ -18,11 +18,13 @@ let qaBootstrapModule: any;
 let sessionModule: any;
 let guardsModule: any;
 
+let dbLib: any;
+
 before(async () => {
   pgServer = await startDatabase();
   process.env.DATABASE_URL = pgServer.connectionString;
 
-  const dbLib = await import("../../src/db");
+  dbLib = await import("../../src/db");
   db = dbLib.db;
   schema = await import("../../src/db/schema");
   auth = (await import("../../src/lib/auth/auth")).auth;
@@ -32,6 +34,9 @@ before(async () => {
 });
 
 after(async () => {
+  if (dbLib?.pool) {
+    await dbLib.pool.end();
+  }
   await pgServer?.stop();
 });
 
@@ -471,5 +476,48 @@ describe("Reproducible Development Environment & QA Safety Verification", () => 
     for (const c of allCustomers) {
       assert.equal((c as any).userId, undefined, "Customers must not have userId attribute or auth linkage");
     }
+  });
+
+  // --------------------------------------------------------------------------
+  // Invariant 13: Node 22 and pnpm toolchain compatibility contract
+  // --------------------------------------------------------------------------
+  it("Invariant 13: Node 22 and pnpm toolchain compatibility contract", () => {
+    // 1. .nvmrc is strictly 22
+    const nvmrcPath = path.resolve(process.cwd(), ".nvmrc");
+    const nvmrcContent = fs.readFileSync(nvmrcPath, "utf-8").trim();
+    assert.equal(nvmrcContent, "22", ".nvmrc must be pinned strictly to Node 22");
+
+    // 2. package.json requires >=22.13.0 <23.0.0 and packageManager is pnpm@11.12.0
+    const pkgPath = path.resolve(process.cwd(), "package.json");
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
+    assert.equal(
+      pkg.engines?.node,
+      ">=22.13.0 <23.0.0",
+      "package.json engines.node must be >=22.13.0 <23.0.0"
+    );
+    assert.equal(
+      pkg.packageManager,
+      "pnpm@11.12.0",
+      "package.json packageManager must be pnpm@11.12.0"
+    );
+
+    // 3. Dockerfile uses node:22-alpine base and runner stages
+    const dockerfilePath = path.resolve(process.cwd(), "Dockerfile");
+    const dockerfileContent = fs.readFileSync(dockerfilePath, "utf-8");
+    assert.match(dockerfileContent, /FROM node:22-alpine AS base/);
+    assert.match(dockerfileContent, /FROM node:22-alpine AS runner/);
+    assert.doesNotMatch(dockerfileContent, /FROM node:20/);
+
+    // 4. README.md states the same contract
+    const readmePath = path.resolve(process.cwd(), "README.md");
+    const readmeContent = fs.readFileSync(readmePath, "utf-8");
+    assert.match(readmeContent, />=22\.13\.0 <23\.0\.0/);
+    assert.match(readmeContent, /pnpm@11\.12\.0/);
+
+    // 5. RELEASE_PREP_A_REPORT.md states the same contract
+    const reportPath = path.resolve(process.cwd(), "docs/task-reports/RELEASE_PREP_A_REPORT.md");
+    const reportContent = fs.readFileSync(reportPath, "utf-8");
+    assert.match(reportContent, />=22\.13\.0 <23\.0\.0/);
+    assert.match(reportContent, /pnpm@11\.12\.0/);
   });
 });

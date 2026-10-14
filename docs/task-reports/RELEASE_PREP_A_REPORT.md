@@ -8,9 +8,21 @@ The overarching goal is to enable any developer cloning the repository on a clea
 
 ---
 
-## 2. Canonical Application Port 4380 Migration
+## 2. Canonical Application Port 4380 & Toolchain Specification
 
 The application's canonical HTTP port has been standardized to **`4380`** (`http://localhost:4380`) across all development tooling, Docker configurations, reverse proxy configs, environment templates, and documentation.
+
+### Authoritative Toolchain Contract:
+- **Node.js**: `v22.x` (Contract: `engines.node: ">=22.13.0 <23.0.0"`)
+- **Package Manager**: `pnpm@11.12.0` (Pinned via Corepack)
+- **NVM Pin**: `.nvmrc` set to `22`
+- **Docker Base & Runner**: `node:22-alpine`
+
+### Toolchain Compatibility Discovery & Resolution (Pre-Closeout Issue):
+During the first tracked-files-only clean setup verification on a clean Node LTS 20 environment:
+- `nvm use` activated Node `v20.20.2`.
+- `pnpm 11.12.0` failed with `"this version of pnpm requires at least Node.js v22.13"` followed by `ERR_UNKNOWN_BUILTIN_MODULE: node:sqlite` because pnpm 11.12+ utilizes `node:sqlite` natively.
+- Rather than downgrading the modern package manager, the toolchain contract was updated to Node 22 (`>=22.13.0 <23.0.0`), `.nvmrc` was updated to `22`, and Dockerfile base/runner images were updated to `node:22-alpine`.
 
 ### Modified Files & Authoritative Configuration:
 1. **`package.json`**:
@@ -20,14 +32,15 @@ The application's canonical HTTP port has been standardized to **`4380`** (`http
    - Added `"dev:all": "tsx scripts/dev-all.ts"`
    - Added `"qa:reset": "tsx --conditions react-server scripts/qa-reset.ts"`
    - Updated `"worker:start": "tsx --conditions react-server scripts/worker.ts"`
-   - Pinned Node engine: `"engines": { "node": ">=20.0.0 <21.0.0" }`
+   - Pinned Node engine: `"engines": { "node": ">=22.13.0 <23.0.0" }`
    - Pinned package manager: `"packageManager": "pnpm@11.12.0"`
 2. **`.nvmrc`**:
-   - Pinned Node LTS runtime to version `20`.
+   - Pinned Node runtime to version `22`.
 3. **`src/lib/env.ts`**:
    - Updated `getAppBaseUrl()` default fallback origin from `http://localhost:3000` to `http://localhost:4380`.
 4. **`Dockerfile`**:
-   - Updated runner stage: `ENV PORT=4380` and `EXPOSE 4380`.
+   - Base stage: `FROM node:22-alpine AS base`
+   - Runner stage: `FROM node:22-alpine AS runner`, `ENV PORT=4380`, and `EXPOSE 4380`.
 5. **`docker-compose.production.yml`**:
    - Updated internal app service environment: `PORT: 4380`.
    - Updated healthcheck test probe: `wget -qO- http://127.0.0.1:4380/api/ready`.
@@ -164,7 +177,7 @@ The QA bootstrap service (`src/services/qa-bootstrap.service.ts` and `scripts/qa
 
 ## 8. Reproducible Dev Safety Test Suite (`tests/auth/reproducible-dev-safety.test.ts`)
 
-A dedicated automated test suite (`tests/auth/reproducible-dev-safety.test.ts`) verifies all 12 reproducibility and safety invariants:
+A dedicated automated test suite (`tests/auth/reproducible-dev-safety.test.ts`) verifies all reproducibility and safety invariants:
 
 | # | Invariant Tested | Result | Verification Details |
 | :-: | :--- | :-: | :--- |
@@ -180,6 +193,7 @@ A dedicated automated test suite (`tests/auth/reproducible-dev-safety.test.ts`) 
 | 10 | QA password converges to `BarberCraft-QA-4380!` | **PASS** | Tested via Better Auth sign-in endpoint before and after bootstrap. |
 | 11 | Owner remains authenticated `OWNER` with staff profile | **PASS** | Verified membership role and RBAC guards. |
 | 12 | Exact 8 canonical authenticated QA identities exist | **PASS** | Verified in `users`, `platform_admins`, and `business_members`. |
+| 13 | Node 22 & pnpm 11.12.0 toolchain contract | **PASS** | Verified `.nvmrc` (22), `package.json` (`>=22.13.0 <23.0.0`), `Dockerfile` (`node:22-alpine`), and documentation parity. |
 
 ---
 
@@ -190,8 +204,8 @@ All automated quality verification gates have executed and passed:
 | Gate | Command | Result | Details |
 | :--- | :--- | :---: | :--- |
 | **Database Tests** | `pnpm db:test` | **PASS** | 53 tests across 12 suites passed (0 failures) on embedded PostgreSQL. |
-| **Auth & Domain Tests** | `pnpm auth:test` | **PASS** | 1102 tests across 210 suites passed (0 failures). |
-| **Reproducible Safety** | `pnpm tsx --conditions react-server --test tests/auth/reproducible-dev-safety.test.ts` | **PASS** | 12/12 invariants passed (0 failures). |
+| **Auth & Domain Tests** | `pnpm auth:test` | **PASS** | 1103 tests across 210 suites passed (0 failures). |
+| **Reproducible Safety** | `pnpm tsx --conditions react-server --test tests/auth/reproducible-dev-safety.test.ts` | **PASS** | 13/13 invariants passed (0 failures). |
 | **Linting** | `pnpm lint` | **PASS** | 0 errors across entire repository. |
 | **Type Check** | `pnpm typecheck` | **PASS** | `tsc --noEmit` clean with 0 type errors. |
 | **Production Build** | `pnpm build` | **PASS** | Next.js 16.3.8 Turbopack production bundle compiled successfully (25/25 routes). |

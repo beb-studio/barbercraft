@@ -8,7 +8,7 @@ Tamamen **Türkçe** kullanıcı arayüzü, rol tabanlı erişim denetimi (RBAC)
 
 ## 📋 Sistem Gereksinimleri
 
-- **Node.js**: `v20.x` LTS (Desteklenen motor sözleşmesi: `>=20.0.0 <21.0.0`)
+- **Node.js**: `v22.x` (Desteklenen motor sözleşmesi: `>=22.13.0 <23.0.0`)
 - **Paket Yöneticisi**: `pnpm@11.12.0` (Corepack ile sabitlenmiş)
 - **Docker**: Docker Engine / Docker Desktop ve Docker Compose (Yerel geliştirme veritabanı için)
 
@@ -23,7 +23,7 @@ Temiz bir geliştirici makinesinde sıfırdan kurulum yalnızca 5 adımdır:
 git clone <repository-url>
 cd "Barber Appointment App"
 
-# 2. Node.js LTS (20) ortamında pnpm paket yöneticisini etkinleştirip bağımlılıkları kurun
+# 2. Node.js (22) ortamında pnpm paket yöneticisini etkinleştirip bağımlılıkları kurun
 corepack enable
 pnpm install --frozen-lockfile
 
