@@ -1,8 +1,18 @@
-import { assertWorkerEnvironment } from "../src/lib/env";
-import { NotificationWorker } from "../src/worker/notification-worker";
-import { logger } from "../src/lib/logger";
+if (typeof process.loadEnvFile === "function") {
+  for (const envFile of [".env.qa.local", ".env.local", ".env"]) {
+    try {
+      process.loadEnvFile(envFile);
+    } catch {
+      // Ignore if file does not exist
+    }
+  }
+}
 
 async function main(): Promise<void> {
+  const { assertWorkerEnvironment } = await import("../src/lib/env");
+  const { NotificationWorker } = await import("../src/worker/notification-worker");
+  const { logger } = await import("../src/lib/logger");
+
   // 1. Fail fast on invalid production configuration
   try {
     assertWorkerEnvironment();
@@ -33,6 +43,8 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  logger.error("Fatal error starting notification worker", err, undefined, "worker");
+  console.error("Fatal error starting notification worker:", err);
   process.exit(1);
 });
+
+export {};

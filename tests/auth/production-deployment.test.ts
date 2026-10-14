@@ -203,11 +203,11 @@ describe("Production Deployment & Operational Readiness", () => {
       );
 
       assert.ok(
-        composeContent.includes("http://127.0.0.1:3000/api/ready"),
+        composeContent.includes("http://127.0.0.1:4380/api/ready"),
         "docker-compose.production.yml app service healthcheck must use /api/ready"
       );
       assert.ok(
-        !composeContent.includes("http://127.0.0.1:3000/api/health"),
+        !composeContent.includes("http://127.0.0.1:4380/api/health"),
         "docker-compose.production.yml app service healthcheck must not use liveness /api/health"
       );
     });

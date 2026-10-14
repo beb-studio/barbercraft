@@ -5,7 +5,7 @@
 #   Background Worker (Notification Worker) -> same PostgreSQL -> Netgsm
 #
 # INVARIANTS:
-# - Application port (3000) and Database port (5432) are NEVER published to host.
+# - Application port (4380) and Database port (5432) are NEVER published to host.
 # - Only Reverse Proxy publishes ports 80 and 443 externally.
 # - Migrator runs once before app and worker startup.
 # - All services communicate over private internal network.
@@ -65,11 +65,11 @@ services:
     env_file:
       - .env.production
     environment:
-      PORT: 3000
+      PORT: 4380
       HOSTNAME: "0.0.0.0"
       NODE_ENV: production
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/ready"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4380/api/ready"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -91,7 +91,7 @@ services:
       dockerfile: Dockerfile
     container_name: barbercraft_worker
     restart: unless-stopped
-    command: ["npx", "tsx", "scripts/worker.ts"]
+    command: ["npx", "tsx", "--conditions", "react-server", "scripts/worker.ts"]
     env_file:
       - .env.production
     environment:

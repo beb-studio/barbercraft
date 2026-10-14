@@ -43,7 +43,7 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
-ENV PORT=3000
+ENV PORT=4380
 ENV HOSTNAME="0.0.0.0"
 ENV NEXT_TELEMETRY_DISABLED=1
 
@@ -61,7 +61,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
 # Drop to non-root user
 USER nextjs
 
-EXPOSE 3000
+EXPOSE 4380
 
 # Default entrypoint starts Next.js standalone web server
 CMD ["node", "server.js"]

@@ -1,0 +1,29 @@
+# ==============================================================================
+# BarberCraft Local Development PostgreSQL Topology
+# Single container PostgreSQL 16 instance for reproducible local dev & QA.
+# ==============================================================================
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: barbercraft_dev_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: barbercraft_dev
+      POSTGRES_USER: barbercraft_user
+      POSTGRES_PASSWORD: barbercraft_password
+    ports:
+      # Dedicated development host port 55432 bound to loopback (avoids colliding with host PostgreSQL)
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - barbercraft_dev_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U barbercraft_user -d barbercraft_dev"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+      start_period: 3s
+
+volumes:
+  barbercraft_dev_pgdata:
+    name: barbercraft_dev_pgdata

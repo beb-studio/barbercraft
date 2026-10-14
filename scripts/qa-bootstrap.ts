@@ -45,8 +45,8 @@ async function main() {
   const ownerEmail = options["owner-email"] || process.env.QA_OWNER_EMAIL || "qa.owner@local.test";
   const ownerPassword = options["owner-password"] || process.env.QA_OWNER_PASSWORD || defaultPassword;
 
-  const managerEmail = options["manager-email"] || process.env.QA_MANAGER_EMAIL || options["admin-email"] || process.env.QA_ADMIN_EMAIL || "qa.manager@local.test";
-  const managerPassword = options["manager-password"] || process.env.QA_MANAGER_PASSWORD || options["admin-password"] || process.env.QA_ADMIN_PASSWORD || defaultPassword;
+  const managerEmail = options["manager-email"] || process.env.QA_MANAGER_EMAIL || "qa.manager@local.test";
+  const managerPassword = options["manager-password"] || process.env.QA_MANAGER_PASSWORD || defaultPassword;
 
   const staffEmail = options["staff-email"] || process.env.QA_STAFF_EMAIL || "qa.staff@local.test";
   const staffPassword = options["staff-password"] || process.env.QA_STAFF_PASSWORD || defaultPassword;
@@ -82,7 +82,7 @@ async function main() {
       staff3Password,
     });
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3001";
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:4380";
 
     console.log("QA bootstrap complete.\n");
     console.log("Credentials file:");
@@ -116,3 +116,5 @@ main().catch((err) => {
   console.error("Unexpected error during QA bootstrap:", err);
   process.exit(1);
 });
+
+export {};

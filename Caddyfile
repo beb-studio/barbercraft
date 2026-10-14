@@ -13,7 +13,7 @@
     }
 
     # Proxy to private application container
-    reverse_proxy app:3000 {
+    reverse_proxy app:4380 {
         # Trusted Proxy Header Contract: Overwrite client headers with verified remote socket values
         header_up Host {host}
         header_up X-Real-IP {remote_host}
