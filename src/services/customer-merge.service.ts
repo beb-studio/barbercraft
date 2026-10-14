@@ -167,7 +167,7 @@ export const CustomerMergeService = {
           initialCanonical.businessId,
           input.actorUserId
         );
-        if (!member || (member.role !== "OWNER" && member.role !== "ADMIN")) {
+        if (!member || (member.role !== "OWNER" && member.role !== "MANAGER")) {
           fail("FORBIDDEN");
         }
 

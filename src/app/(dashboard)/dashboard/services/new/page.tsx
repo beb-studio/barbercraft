@@ -17,7 +17,7 @@ export default async function NewServicePage() {
   }
 
   // RBAC Boundary: STAFF is strictly forbidden from service creation
-  if (currentMembership.role !== "OWNER" && currentMembership.role !== "ADMIN") {
+  if (currentMembership.role !== "OWNER" && currentMembership.role !== "MANAGER") {
     redirect("/dashboard");
   }
 

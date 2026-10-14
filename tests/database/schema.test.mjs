@@ -371,20 +371,20 @@ describe("Platform Administration Schema & Constraints", () => {
     fails(
       await q(
         `INSERT INTO platform_admins (user_id, role, active)
-         VALUES ($1, 'ADMIN', true)`,
+         VALUES ($1, 'PLATFORM_ADMIN', true)`,
         [U.user1]
       ),
       UNIQUE
     );
 
-    // 3. Valid ADMIN for user2 succeeds
+    // 3. Valid PLATFORM_ADMIN for user2 succeeds
     const res2 = await q(
       `INSERT INTO platform_admins (user_id, role, active)
-       VALUES ($1, 'ADMIN', true) RETURNING *`,
+       VALUES ($1, 'PLATFORM_ADMIN', true) RETURNING *`,
       [U.user2]
     );
     ok(res2);
-    assert.equal(res2.rows[0].role, "ADMIN");
+    assert.equal(res2.rows[0].role, "PLATFORM_ADMIN");
 
     // 4. Invalid role enum fails
     const invalidRole = await q(
@@ -398,7 +398,7 @@ describe("Platform Administration Schema & Constraints", () => {
     fails(
       await q(
         `INSERT INTO platform_admins (user_id, role, active)
-         VALUES ('00000000-0000-4000-8000-999999999999', 'ADMIN', true)`
+         VALUES ('00000000-0000-4000-8000-999999999999', 'PLATFORM_ADMIN', true)`
       ),
       FK
     );

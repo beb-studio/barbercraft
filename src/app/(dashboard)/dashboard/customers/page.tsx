@@ -18,7 +18,7 @@ export default async function CustomersPage({
   }
 
   // RBAC Boundary: STAFF is strictly forbidden from customer CRM directory
-  if (currentMembership.role !== "OWNER" && currentMembership.role !== "ADMIN") {
+  if (currentMembership.role !== "OWNER" && currentMembership.role !== "MANAGER") {
     redirect("/dashboard");
   }
 

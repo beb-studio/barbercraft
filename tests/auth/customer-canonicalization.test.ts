@@ -103,7 +103,7 @@ before(async () => {
   ]);
   await db.insert(schema.businessMembers).values([
     { id: ids.ownerMember, businessId: ids.businessA, userId: ids.owner, role: "OWNER" },
-    { id: ids.adminMember, businessId: ids.businessA, userId: ids.admin, role: "ADMIN" },
+    { id: ids.adminMember, businessId: ids.businessA, userId: ids.admin, role: "MANAGER" },
     { id: ids.staffMember, businessId: ids.businessA, userId: ids.staff, role: "STAFF" },
     { id: ids.ownerBMember, businessId: ids.businessB, userId: ids.ownerB, role: "OWNER" },
   ]);
@@ -652,7 +652,7 @@ describe("TASK 013C.2B canonical customer resolution", () => {
   describe("search privacy, duplicates, and profile safety", () => {
     for (const [label, userId] of [
       ["OWNER", ids.owner],
-      ["ADMIN", ids.admin],
+      ["MANAGER", ids.admin],
       ["STAFF", ids.staff],
     ] as const) {
       it(`40-42. ${label} alias search returns the canonical minimum DTO`, async () => {

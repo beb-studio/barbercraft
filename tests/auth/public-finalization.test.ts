@@ -21,7 +21,7 @@ const staffOther = uuid(201); // Other business
 const svc30 = uuid(300); // 30 min, Main biz
 const svcOther = uuid(301); // Other biz
 
-const TARGET_TIME = "2026-10-14T10:00:00Z";
+const TARGET_TIME = "2026-10-21T10:00:00Z";
 
 describe("Public Booking Finalization (TASK 007C)", { concurrency: false }, () => {
   before(async () => {
@@ -170,7 +170,7 @@ describe("Public Booking Finalization (TASK 007C)", { concurrency: false }, () =
         slug: "main-biz",
         serviceId: svc30,
         staffId: staff1,
-        startAt: "2026-10-14T09:00:00Z", // 12:00 Istanbul time
+        startAt: "2026-10-21T09:00:00Z", // 12:00 Istanbul time
         customerName: "Bir Müşteri",
         customerPhone: "05321112233"
       });
@@ -198,7 +198,7 @@ describe("Public Booking Finalization (TASK 007C)", { concurrency: false }, () =
           slug: "main-biz",
           serviceId: svc30,
           staffId: staff1,
-          startAt: "2026-10-14T09:00:00Z", // Already booked!
+          startAt: "2026-10-21T09:00:00Z", // Already booked!
           customerName: "İkinci Müşteri",
           customerPhone: "05324445566"
         });
@@ -213,7 +213,7 @@ describe("Public Booking Finalization (TASK 007C)", { concurrency: false }, () =
         slug: "main-biz",
         serviceId: svc30,
         staffId: staff1,
-        startAt: "2026-10-14T10:00:00Z", 
+        startAt: "2026-10-21T10:00:00Z",
         customerName: "A",
         customerPhone: "5551112233"
       });
@@ -222,7 +222,7 @@ describe("Public Booking Finalization (TASK 007C)", { concurrency: false }, () =
         slug: "main-biz",
         serviceId: svc30,
         staffId: staff1,
-        startAt: "2026-10-14T10:00:00Z", 
+        startAt: "2026-10-21T10:00:00Z",
         customerName: "B",
         customerPhone: "5559998877"
       });
@@ -236,7 +236,7 @@ describe("Public Booking Finalization (TASK 007C)", { concurrency: false }, () =
       assert.equal(failures.length, 1, "Exactly one booking should fail");
       assert.match((failures[0] as any).reason.message, /SLOT_UNAVAILABLE/);
       
-      const apts = await db.execute(`SELECT * FROM appointments WHERE start_time = '2026-10-14T10:00:00Z'`);
+      const apts = await db.execute(`SELECT * FROM appointments WHERE start_time = '2026-10-21T10:00:00Z'`);
       assert.equal(apts.rows.length, 1, "Only one appointment should be created in the DB");
     });
     
@@ -245,7 +245,7 @@ describe("Public Booking Finalization (TASK 007C)", { concurrency: false }, () =
         slug: "main-biz",
         serviceId: svc30,
         staffId: staff1,
-        startAt: "2026-10-14T11:00:00Z", 
+        startAt: "2026-10-21T11:00:00Z",
         customerName: "Test 1",
         customerPhone: "0532 999 88 77"
       });
@@ -254,7 +254,7 @@ describe("Public Booking Finalization (TASK 007C)", { concurrency: false }, () =
         slug: "main-biz",
         serviceId: svc30,
         staffId: staff1,
-        startAt: "2026-10-14T12:00:00Z", 
+        startAt: "2026-10-21T12:00:00Z",
         customerName: "Test 2",
         customerPhone: "05329998877"
       });
@@ -270,7 +270,7 @@ describe("Public Booking Finalization (TASK 007C)", { concurrency: false }, () =
           slug: "main-biz",
           serviceId: svc30,
           staffId: staff1,
-          startAt: "2026-10-14T09:00:00Z", // Already booked by earlier test
+          startAt: "2026-10-21T09:00:00Z", // Already booked by earlier test
           customerName: "Rollback Test",
           customerPhone: uniquePhone
         });
@@ -288,7 +288,7 @@ describe("Public Booking Finalization (TASK 007C)", { concurrency: false }, () =
         slug: "main-biz",
         serviceId: svc30,
         staffId: staff1,
-        startAt: "2026-10-14T13:00:00Z", 
+        startAt: "2026-10-21T13:00:00Z",
         customerName: "A",
         customerPhone: "5551112233"
       });
@@ -297,7 +297,7 @@ describe("Public Booking Finalization (TASK 007C)", { concurrency: false }, () =
         slug: "main-biz",
         serviceId: svc30,
         staffId: staff1,
-        startAt: "2026-10-14T13:15:00Z", // Overlaps!
+        startAt: "2026-10-21T13:15:00Z", // Overlaps!
         customerName: "B",
         customerPhone: "5559998877"
       });
@@ -318,16 +318,16 @@ describe("Public Booking Finalization (TASK 007C)", { concurrency: false }, () =
         slug: "main-biz",
         serviceId: svc30,
         staffId: staff1,
-        startAt: "2026-10-14T14:00:00Z", 
+        startAt: "2026-10-21T14:00:00Z",
         customerName: "C",
         customerPhone: "5551112233"
       });
       
       const req2 = createStaffTimeBlockService(bizMain, staff1, {
         blockType: "TIME_OFF",
-        startDate: "2026-10-14",
+        startDate: "2026-10-21",
         startTime: "14:15",
-        endDate: "2026-10-14",
+        endDate: "2026-10-21",
         endTime: "14:45",
       }, "OWNER");
       
@@ -347,7 +347,7 @@ describe("Public Booking Finalization (TASK 007C)", { concurrency: false }, () =
         slug: "main-biz",
         serviceId: svc30,
         staffId: staff1,
-        startAt: "2026-10-14T07:00:00Z", 
+        startAt: "2026-10-21T07:00:00Z",
         customerName: "Gizli Müşteri",
         customerPhone: "0532 000 00 00"
       });
@@ -369,7 +369,7 @@ describe("Public Booking Finalization (TASK 007C)", { concurrency: false }, () =
         slug: "main-biz",
         serviceId: svc30,
         staffId: staff1,
-        startAt: "2026-10-14T07:30:00Z", 
+        startAt: "2026-10-21T07:30:00Z",
         customerName: "No Auth",
         customerPhone: "0532 999 99 99"
       });

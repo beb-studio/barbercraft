@@ -138,8 +138,8 @@ before(async () => {
   // 2. Seed Platform Admins
   await db.insert(schema.platformAdmins).values([
     { id: ids.superAdminRecord, userId: ids.superAdminUser, role: "SUPER_ADMIN", active: true },
-    { id: ids.adminRecord, userId: ids.adminUser, role: "ADMIN", active: true },
-    { id: ids.inactiveAdminRecord, userId: ids.inactiveAdminUser, role: "ADMIN", active: false },
+    { id: ids.adminRecord, userId: ids.adminUser, role: "PLATFORM_ADMIN", active: true },
+    { id: ids.inactiveAdminRecord, userId: ids.inactiveAdminUser, role: "PLATFORM_ADMIN", active: false },
   ]);
 
   // 3. Seed Businesses
@@ -193,7 +193,7 @@ before(async () => {
   // 4. Seed Memberships
   await db.insert(schema.businessMembers).values([
     { id: ids.memberOwnerA, businessId: ids.businessA, userId: ids.ownerA, role: "OWNER", active: true },
-    { id: ids.memberAdminA, businessId: ids.businessA, userId: ids.adminA, role: "ADMIN", active: true },
+    { id: ids.memberAdminA, businessId: ids.businessA, userId: ids.adminA, role: "MANAGER", active: true },
     { id: ids.memberStaffA, businessId: ids.businessA, userId: ids.staffA, role: "STAFF", active: true },
     { id: ids.memberOwnerB, businessId: ids.businessB, userId: ids.ownerB, role: "OWNER", active: true },
     { id: ids.memberStaffB, businessId: ids.businessB, userId: ids.staffB, role: "STAFF", active: true },
@@ -609,14 +609,14 @@ describe("TASK 019A: Platform Operations Foundation", () => {
       assert.equal(b.currency, "TRY");
     });
 
-    it("3.2: member counts (owner, admin, staff) are accurately tallied", async () => {
+    it("3.2: member counts (owner, manager, staff) are accurately tallied", async () => {
       const list = await platformOpsService.listBusinessOperations(
         { page: 1, limit: 10, search: "alpha" },
         referenceNow
       );
       const b = list.items[0];
       assert.equal(b.memberCounts.owner, 1);
-      assert.equal(b.memberCounts.admin, 1);
+      assert.equal(b.memberCounts.manager, 1);
       assert.equal(b.memberCounts.staff, 1);
       assert.equal(b.memberCounts.totalActive, 3);
     });

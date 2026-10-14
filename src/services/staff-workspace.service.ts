@@ -40,7 +40,7 @@ export interface GetStaffWorkspaceInput {
   role: string;
   rangePreset?: StaffWorkspaceRangePreset;
   selectedDate?: string; // YYYY-MM-DD
-  targetStaffId?: string; // Optional for OWNER/ADMIN
+  targetStaffId?: string; // Optional for OWNER/MANAGER
   referenceNow?: Date;
 }
 
@@ -151,7 +151,7 @@ export class StaffWorkspaceService {
         }
         activeProfile = profile;
       }
-    } else if (role === "ADMIN") {
+    } else if (role === "MANAGER") {
       if (targetStaffId) {
         const [staffRow] = await db
           .select({
@@ -167,7 +167,7 @@ export class StaffWorkspaceService {
           throw new Error("Personel bulunamadı.");
         }
         if (staffRow.member.role === "OWNER") {
-          throw new ForbiddenError("Yöneticiler (ADMIN), işletme sahibinin (OWNER) personel profilini yönetemez.");
+          throw new ForbiddenError("İşletme yöneticileri (MANAGER), işletme sahibinin (OWNER) personel profilini yönetemez.");
         }
         activeProfile = staffRow.profile;
       } else {

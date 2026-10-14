@@ -275,14 +275,14 @@ export class PlatformOperationsRepository {
       db.execute<{
         business_id: string;
         owner_count: string;
-        admin_count: string;
+        manager_count: string;
         staff_count: string;
         total_active: string;
       }>(sql`
         SELECT
           business_id,
           count(*) FILTER (WHERE role = 'OWNER' AND active = true)::text AS owner_count,
-          count(*) FILTER (WHERE role = 'ADMIN' AND active = true)::text AS admin_count,
+          count(*) FILTER (WHERE role = 'MANAGER' AND active = true)::text AS manager_count,
           count(*) FILTER (WHERE role = 'STAFF' AND active = true)::text AS staff_count,
           count(*) FILTER (WHERE active = true)::text AS total_active
         FROM business_members
@@ -403,7 +403,7 @@ export class PlatformOperationsRepository {
       const d = deliveriesMap.get(biz.id);
 
       const ownerCount = m ? Number(m.owner_count) : 0;
-      const adminCount = m ? Number(m.admin_count) : 0;
+      const managerCount = m ? Number(m.manager_count) : 0;
       const staffMemberCount = m ? Number(m.staff_count) : 0;
       const totalActiveMembers = m ? Number(m.total_active) : 0;
 
@@ -482,7 +482,7 @@ export class PlatformOperationsRepository {
         updatedAt: biz.updatedAt.toISOString(),
         memberCounts: {
           owner: ownerCount,
-          admin: adminCount,
+          manager: managerCount,
           staff: staffMemberCount,
           totalActive: totalActiveMembers,
         },

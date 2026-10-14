@@ -62,7 +62,7 @@ Connects users to businesses with role assignments.
 - `id` (uuid, PK, default `gen_random_uuid()`)
 - `business_id` (uuid, FK `businesses.id` ON DELETE CASCADE, NOT NULL)
 - `user_id` (uuid, FK `users.id` ON DELETE CASCADE, NOT NULL)
-- `role` (`business_member_role` enum: `'OWNER'`, `'ADMIN'`, `'STAFF'`, NOT NULL)
+- `role` (`business_member_role` enum: `'OWNER'`, `'MANAGER'`, `'STAFF'`, NOT NULL)
 - `active` (boolean, default true, NOT NULL)
 - `created_at`, `updated_at` (timestamptz, NOT NULL)
 - Constraints:
@@ -138,7 +138,7 @@ Business-scoped customer registry.
 - Canonical read policy: family membership is the canonical row plus rows whose `merged_into_customer_id` equals the canonical ID. Directory pagination starts from canonical rows, while appointment and note aggregates join through this one-hop family.
 - Booking resolution policy: exact `(business_id, normalized_phone)` remains authoritative and is canonicalized through lineage. Comparison-key fallback is allowed only for one unambiguous root family; comparison keys remain non-unique and never cause automatic merge.
 - Historical preservation: resolving a future booking never updates an existing customer profile, `appointments.customer_id`, or historical `customer_notes.customer_id`. New notes submitted through stale alias IDs are inserted against the canonical customer.
-- Operational merge write policy: the OWNER/ADMIN confirmation flow delegates to the serializable merge service; only alias merge metadata changes. The selected canonical row remains a root, all other family members point directly to it, and no appointment, service snapshot, note ownership, or customer row is rewritten/deleted.
+- Operational merge write policy: the OWNER/MANAGER confirmation flow delegates to the serializable merge service; only alias merge metadata changes. The selected canonical row remains a root, all other family members point directly to it, and no appointment, service snapshot, note ownership, or customer row is rewritten/deleted.
 - Lineage read policy: canonical CRM detail loads direct aliases with one tenant-scoped query for previous name/phone, merge timestamp, and optional merge-author display name. These fields are management-only and are not exposed to STAFF booking search or public flows.
 - V1 deliberately has no reverse-lineage mutation or unmerge operation.
 

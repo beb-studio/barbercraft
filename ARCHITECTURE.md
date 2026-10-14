@@ -69,7 +69,7 @@ src/
 │   └── schema/               # Drizzle table schemas, composite FKs & enums
 │       ├── users.ts          # Core system user records
 │       ├── businesses.ts     # Business tenant boundaries
-│       ├── members.ts        # Business members and roles (`OWNER`, `ADMIN`, `STAFF`)
+│       ├── members.ts        # Business members and roles (`OWNER`, `MANAGER`, `STAFF`)
 │       ├── services.ts       # Dynamic service catalogs
 │       ├── staff.ts          # Staff profiles & staff-service mappings
 │       ├── customers.ts      # Business-scoped customer records
@@ -129,7 +129,7 @@ drizzle/
   - `/dashboard/services/new`: Dynamic service creation form.
   - `/dashboard/services/[serviceId]/edit`: Scoped service update form.
 - **Server-Side RBAC**:
-  - Service management operations are restricted to `OWNER` and `ADMIN` roles using `requireAdminOrOwner(businessId)`.
+  - Service management operations are restricted to `OWNER` and `MANAGER` roles using `requireManagerOrOwner(businessId)`.
   - `STAFF` members are forbidden from viewing or manipulating service catalogs (redirected from UI, rejected by Server Actions).
 - **Tenant Isolation**:
   - Operations are strictly scoped to the active tenant's `business_id` determined server-side from session membership.
@@ -143,9 +143,9 @@ drizzle/
 - **Route Hierarchy**:
   - `/dashboard/staff`: Staff roster view displaying members, roles, bookable calendar status, active toggles.
 - **Server-Side RBAC**:
-  - Operations are authorized strictly for `OWNER` and `ADMIN` roles using `requireAdminOrOwner(businessId)`.
+  - Operations are authorized strictly for `OWNER` and `MANAGER` roles using `requireManagerOrOwner(businessId)`.
   - `STAFF` members are forbidden from managing staff rosters.
-  - Role safety: `OWNER` and `ADMIN` cannot be deactivated through staff management actions.
+  - Role safety: `OWNER` and `MANAGER` cannot be deactivated through staff management actions.
 - **Self-Hosted Cryptographic Invitation Engine**:
   - Eliminates reliance on external email SaaS or third-party auth services.
   - Generates 256-bit cryptographically random tokens (`crypto.randomBytes(32)`).
@@ -158,7 +158,7 @@ drizzle/
   - `/dashboard/staff/[staffId]`: Staff profile detail, service assignments, and public booking readiness controls.
 - **Hierarchical RBAC Boundaries**:
   - `OWNER` users have full authority over all staff profiles within their business, including their own owner staff profile.
-  - `ADMIN` users can manage `STAFF` profiles only. Any attempt by an `ADMIN` to view, modify services, or toggle booking for the `OWNER`'s staff profile is strictly rejected with `ForbiddenError`.
+  - `MANAGER` users can manage `STAFF` profiles only. Any attempt by a `MANAGER` to view, modify services, or toggle booking for the `OWNER`'s staff profile is strictly rejected with `ForbiddenError`.
   - `STAFF` users are strictly forbidden from staff profile management.
 - **Derived Booking Readiness Engine (`evaluateBookingReadiness`)**:
   - Pure server-side derived calculation; no `booking_ready` column is persisted.
@@ -205,7 +205,7 @@ drizzle/
   - Enforces prerequisite check: `toggleStaffPublicBooking` cannot enable public booking if effective schedule is invalid or has 0 open days.
 - **Server-Side Tenant Resolution & RBAC**:
   - Server actions `saveStaffWorkingHoursAction` and `setStaffScheduleModeAction` derive `businessId` and caller role authoritatively from session. Client payloads do not provide `businessId`.
-  - OWNER can manage all profiles; ADMIN can manage STAFF profiles only; ADMIN blocked from OWNER with `ForbiddenError`.
+  - OWNER can manage all profiles; MANAGER can manage STAFF profiles only; MANAGER blocked from OWNER with `ForbiddenError`.
 - **Mobile-First Client Experience**:
   - Located on `/dashboard/staff/[staffId]` between public booking toggle and service assignment cards.
   - Segmented mode switcher ("İşletme Çalışma Saatleri" vs "Özel Çalışma Saatleri").
@@ -239,7 +239,7 @@ drizzle/
   - Past blocks are immutable: update and delete operations reject modifications if `block.endTime <= now()`.
 - **RBAC & Multi-Tenant Enforcement**:
   - Server actions `getStaffTimeBlocksAction`, `createStaffTimeBlockAction`, `updateStaffTimeBlockAction`, `deleteStaffTimeBlockAction` resolve `businessId` and caller role directly from the session.
-  - OWNER can manage all profiles; ADMIN can manage STAFF profiles only (ADMIN is blocked from OWNER with 403 Forbidden).
+  - OWNER can manage all profiles; MANAGER can manage STAFF profiles only (MANAGER is blocked from OWNER with 403 Forbidden).
   - STAFF members cannot manage time blocks.
 - **UI Architecture (`/dashboard/staff/[staffId]`)**:
   - Dedicated "Müsait Olmadığı Zamanlar" card located below weekly schedule editor.
@@ -249,17 +249,17 @@ drizzle/
 
 ### 3.11 Platform Administration Foundation (TASK 010A)
 - **Platform Authority vs Business/Tenant Authority**:
-  - **Core Architectural Invariant**: *Business OWNER/ADMIN roles never imply platform administration privileges.*
-  - Tenant roles (`OWNER`, `ADMIN`, `STAFF`) are scoped strictly to `business_members` for intra-business operations.
+  - **Core Architectural Invariant**: *Business OWNER/MANAGER roles never imply platform administration privileges.*
+  - Tenant roles (`OWNER`, `MANAGER`, `STAFF`) are scoped strictly to `business_members` for intra-business operations.
   - Platform administrators are decoupled from tenant memberships and modeled in the dedicated `platform_admins` table linked directly to Better Auth `users.id`.
   - Platform authority operates ABOVE tenant scope; platform context does not implicitly inject a tenant `businessId`.
 - **Platform Authorization Model**:
-  - `platform_admins`: `id` (UUID PK), `user_id` (FK to `users.id`, UNIQUE constraint), `role` (`platform_admin_role` enum: `SUPER_ADMIN`, `ADMIN`), `active` (boolean, default true), `created_at`, `updated_at`.
+  - `platform_admins`: `id` (UUID PK), `user_id` (FK to `users.id`, UNIQUE constraint), `role` (`platform_admin_role` enum: `SUPER_ADMIN`, `PLATFORM_ADMIN`), `active` (boolean, default true), `created_at`, `updated_at`.
   - `SUPER_ADMIN`: Highest platform authority with future capability to manage platform operators.
-  - `ADMIN`: Platform operator with read-only metrics access in TASK 010A and future business management capabilities.
+  - `PLATFORM_ADMIN`: Platform operator with read-only metrics access in TASK 010A and platform business management capabilities.
 - **Server-Side Bootstrapping CLI**:
   - Zero public HTTP exposure for admin granting.
-  - CLI script `pnpm platform-admin:grant --email <email> --role <SUPER_ADMIN|ADMIN>` performs server-side validation and idempotent upsert.
+  - CLI script `pnpm platform-admin:grant --email <email> --role <SUPER_ADMIN|PLATFORM_ADMIN>` performs server-side validation and idempotent upsert.
   - CLI script `pnpm platform-admin:list` safely reports platform administrator status without sensitive data.
 - **Centralized Platform Guards**:
   - `requirePlatformAdmin()`: Enforces authenticated session + active `platform_admins` row in DB, returning typed context `{ userId, platformAdminId, platformRole }`.
@@ -296,13 +296,13 @@ drizzle/
   - Selecting an existing customer preserves the CRM profile completely: the appointment transaction verifies tenant ownership and directly sets `appointments.customer_id = existingCustomerId` without invoking `upsertCustomer`.
   - Appointment notes are stored in `appointments.notes` and do not touch customer internal notes.
 - **Role-Based Privacy Boundary**:
-  - `OWNER` and `ADMIN` have full CRM access (customer directory at `/dashboard/customers`, profile editing, and internal notes).
+  - `OWNER` and `MANAGER` have full CRM access (customer directory at `/dashboard/customers`, profile editing, and internal notes).
   - `STAFF` members are forbidden from CRM directory, customer editing, and notes.
   - For operational efficiency, `STAFF` is granted purpose-limited access to `searchCustomersForBookingAction` strictly when creating appointments for their own calendar, returning minimal operational fields without exposing CRM notes or private audit trails.
 - **Duplicate Candidate Detection**:
   - `CustomerRepository.getDuplicateCandidates` analyzes tenant customer phone numbers using `customerPhoneComparisonKey`, which normalizes various Turkish phone formats (`05xx`, `+905xx`, `905xx`, `5xx`) into canonical E.164 strings.
   - Clusters records with identical comparison keys into candidate groups with calculated confidence levels (`HIGH` or `POSSIBLE`) and explanatory Turkish descriptions.
-  - Review at `/dashboard/customers/duplicates` is restricted to `OWNER` and `ADMIN`.
+  - Review at `/dashboard/customers/duplicates` is restricted to `OWNER` and `MANAGER`.
   - Detection itself is non-destructive and never auto-merges or deletes. TASK 013C.2C adds a separate explicit selection and confirmation mutation.
 - **Merge Architecture Foundations**:
   - The PostgreSQL immutability trigger `prevent_appointment_column_change()` strictly prevents updating `customer_id` on existing appointment rows.
@@ -319,7 +319,7 @@ drizzle/
   - `phone_comparison_key` stores application-equivalent `customerPhoneComparisonKey` output without replacing `normalized_phone` and without uniqueness.
   - Public/manual creation, profile edits, QA bootstrap, migration backfill, and a database synchronization trigger keep it current.
 - **Transactional Merge Service**:
-  - `CustomerMergeService` derives tenant authority from the canonical customer and authenticated active membership, permits only `OWNER`/`ADMIN`, reloads the complete equal-key group, and locks lineage rows in deterministic UUID order.
+  - `CustomerMergeService` derives tenant authority from the canonical customer and authenticated active membership, permits only `OWNER`/`MANAGER`, reloads the complete equal-key group, and locks lineage rows in deterministic UUID order.
   - Existing valid aliases are flattened to the selected root; stale, corrupt, cyclic, cross-tenant, or ineligible requests return typed safe errors.
 - **Product integration**:
   - TASK 013C.2C exposes this service only through an explicit canonical selection and confirmation workflow.
@@ -344,7 +344,7 @@ drizzle/
 
 ### 3.16 Operational Customer Merge Workflow (TASK 013C.2C)
 - **Explicit operator decision**:
-  - `/dashboard/customers/duplicates` is restricted to tenant `OWNER`/`ADMIN` and presents a deliberate review workflow. The operator must enter review mode, explicitly select a radio-card `Birincil Müşteri`, review consequences, and confirm in an accessible alert dialog.
+  - `/dashboard/customers/duplicates` is restricted to tenant `OWNER`/`MANAGER` and presents a deliberate review workflow. The operator must enter review mode, explicitly select a radio-card `Birincil Müşteri`, review consequences, and confirm in an accessible alert dialog.
   - No customer is preselected, no candidate is auto-merged, and activity/age never overrides the operator's explicit canonical choice.
 - **Server action boundary**:
   - `mergeCustomersAction(canonicalCustomerId, selectedCustomerIds)` treats both ID inputs as untrusted references. It derives the actor from the authenticated session and delegates tenant authority, complete-group reload, eligibility, serializable locking, and lineage validation to `CustomerMergeService`.
@@ -354,7 +354,7 @@ drizzle/
   - Duplicate review, directory, and canonical detail routes are revalidated after success; navigation lands on the canonical profile with restrained success feedback.
 - **Lineage read model**:
   - Canonical detail performs one tenant-scoped alias query and renders `Birleştirilen Kayıtlar` only when aliases exist. It exposes previous name, previous phone, merge timestamp, and (when present) the business member's display name, but never raw IDs or comparison keys.
-  - Lineage is management CRM data: OWNER/ADMIN only. STAFF purpose-limited booking search and all public flows remain lineage-free.
+  - Lineage is management CRM data: OWNER/MANAGER only. STAFF purpose-limited booking search and all public flows remain lineage-free.
 - **Historical immutability and V1 scope**:
   - Merge changes only customer merge metadata. Customer rows remain, appointment customer IDs and service snapshots remain unchanged, and historical note customer IDs remain unchanged.
   - There is no unmerge, physical deletion, appointment reassignment, or note reassignment operation in V1.
@@ -426,7 +426,7 @@ drizzle/
 
 ### 3.21 Business Booking Policy Settings (TASK 015B)
 - **Authorized settings boundary**:
-  - `/dashboard/settings/booking` is visible and accessible only to an active tenant `OWNER` or `ADMIN`. `STAFF`, unauthenticated users, and platform administrators without tenant membership receive no settings authority.
+  - `/dashboard/settings/booking` is visible and accessible only to an active tenant `OWNER` or `MANAGER`. `STAFF`, unauthenticated users, and platform administrators without tenant membership receive no settings authority.
   - The update action accepts no `businessId`. It derives the active tenant from the authenticated membership, parses presentation values, converts them to canonical minutes/days, and delegates to the centralized validator/service.
 - **Lossless presentation model**:
   - Lead, cancellation notice, and reschedule notice use whole-number amount plus `Dakika` / `Saat` / `Gün`. Persisted values display in the largest exact ordinary unit without rounding; non-divisible or non-ordinary values remain minutes.
@@ -461,7 +461,7 @@ drizzle/
 - **Separated configuration ownership**:
   - `business_notification_settings` is a one-to-one tenant domain separate from `businesses`, with a master customer-notification switch and independent creation, reschedule, and cancellation preferences. A database provisioning trigger creates the compatibility-safe default row for every business, including non-UI provisioning paths.
   - `business_notification_reminder_rules` retains at most three enabled whole-minute offsets per business. PostgreSQL constrains each offset to `5..43200` and makes the canonical minute value tenant-unique; the service enforces the V1 three-rule limit.
-  - `/dashboard/settings/notifications` is an OWNER/ADMIN-only settings route. The mutation derives its tenant from trusted membership, locks the settings row, uses `updated_at::text` as an opaque optimistic version, and writes switches, rule set, and reminder reconciliation atomically.
+  - `/dashboard/settings/notifications` is an OWNER/MANAGER-only settings route. The mutation derives its tenant from trusted membership, locks the settings row, uses `updated_at::text` as an opaque optimistic version, and writes switches, rule set, and reminder reconciliation atomically.
 - **Planning boundary**:
   - `NotificationPlannerService` consumes only owned `PROCESSING` outbox claims. In one transaction it locks the source event, settings, and appointment, validates payload version/current schedule truth, reconciles plans, and marks the event `PROCESSED` through the existing ownership check.
   - `notification_plans` represents intent only: `PENDING` or `CANCELLED`, a trusted schedule instant, and a deterministic global idempotency key. It has no delivery status, provider state, recipient snapshot, or raw capability.
@@ -497,7 +497,7 @@ drizzle/
 ### 3.25 Business Analytics & Query Foundation (TASK 017A)
 
 - **Tenant Isolation & Authorization**:
-  - Analytics data access is strictly tenant-private, restricted to active `OWNER` and `ADMIN` business memberships via server-side session resolution. `STAFF` users, unauthenticated callers, and cross-tenant operators receive no business-wide analytics authority.
+  - Analytics data access is strictly tenant-private, restricted to active `OWNER` and `MANAGER` business memberships via server-side session resolution. `STAFF` users, unauthenticated callers, and cross-tenant operators receive no business-wide analytics authority.
   - The browser cannot pass an authoritative `businessId`; the tenant boundary is derived exclusively from authenticated session state.
 - **Date Range & Timezone Model**:
   - Centralized range abstraction (`getAnalyticsDateRange`) supporting fixed presets: `TODAY` (1 day), `LAST_7_DAYS` (7 days), `LAST_30_DAYS` (30 days).
@@ -519,7 +519,7 @@ drizzle/
 - **Role-Aware Routing & Strict Staff Isolation**:
   - The `/dashboard` route enforces server-side role separation based on verified tenant membership (`membership.role`).
   - `STAFF`: strictly isolated from business-wide analytics and financial figures. Renders `StaffDashboardView` with their personal operational agenda (`getDashboardDailyAgenda` scoped to `myProfile.id`). `BusinessAnalyticsService` is never invoked for staff.
-  - `OWNER` / `ADMIN`: renders the Business Analytics Command Center powered by `BusinessAnalyticsService.getDashboardAnalytics`.
+  - `OWNER` / `MANAGER`: renders the Business Analytics Command Center powered by `BusinessAnalyticsService.getDashboardAnalytics`.
 - **URL-Driven Range State & Server Component Composition**:
   - Range presets (`TODAY`, `LAST_7_DAYS`, `LAST_30_DAYS`) are parsed directly from `searchParams.range`. Invalid or missing parameters safely fall back to `LAST_7_DAYS`.
   - Interactive `RangeSelector` segmented control provides accessible tablist navigation with `min-h-[44px]` touch targets and date span captions.
@@ -558,7 +558,7 @@ drizzle/
 - **Personal Time Block Self-Service & Appointment Overlap Prevention**:
   - `STAFF` members can create and delete their own temporary time blocks (`TIME_OFF`, `BREAK`, `BLOCKED`).
   - Creating a time block locks the staff row (`SELECT ... FOR UPDATE`) and checks against existing `PENDING` and `CONFIRMED` operational appointments. If an appointment exists in the interval, creation is rejected with `TimeBlockAppointmentOverlapError` ("Bu zaman aralığında mevcut bir randevunuz bulunuyor.").
-  - Recurring weekly schedule mutations (`saveStaffWorkingHoursAction`) remain strictly restricted to `OWNER` and `ADMIN`.
+  - Recurring weekly schedule mutations (`saveStaffWorkingHoursAction`) remain strictly restricted to `OWNER` and `MANAGER`.
 
 ### 3.28 Staff Mobile Workspace UX Architecture (TASK 018B)
 
@@ -581,13 +581,13 @@ drizzle/
 - **Role-Scoped Dashboard Navigation**:
   - In `DashboardShell` and `MobileNav`, navigation is strictly role-scoped:
     - `STAFF`: Desktop sidebar renders "Programım", "Ajanda", "Yeni Randevu"; mobile bottom nav renders "Bugün", "Ajanda", "Yeni Randevu". Management routes (Services, Staff, Customers, Settings) are completely hidden.
-    - `OWNER` / `ADMIN`: Retains full administrative navigation and business analytics command center with zero regression.
+    - `OWNER` / `MANAGER`: Retains full administrative navigation and business analytics command center with zero regression.
 
 ### 3.29 Platform Operations Foundation (TASK 019A)
 
 - **Authorization Model & Strict Role Separation**:
   - Platform operations are strictly guarded by `requirePlatformAdmin` and `requirePlatformAdminWithUser`.
-  - Only authenticated sessions mapped to active records in `platform_users` with role `SUPER_ADMIN` or `ADMIN` are authorized.
+  - Only authenticated sessions mapped to active records in `platform_users` with role `SUPER_ADMIN` or `PLATFORM_ADMIN` are authorized.
   - Tenant users (even business `OWNER`s), staff members, customers, and unauthenticated callers are strictly barred with typed `ForbiddenError` / `UnauthorizedError`.
 - **Customer Privacy & Non-Impersonation Boundary**:
   - Platform operator read models (`PlatformOperationsSummary`, `PlatformBusinessOperationsSummary`, `PlatformBusinessOperationsDetail`) enforce strict data boundaries:

@@ -17,7 +17,7 @@ export default async function ServicesPage() {
   }
 
   // RBAC Boundary: STAFF is strictly forbidden from service management
-  if (currentMembership.role !== "OWNER" && currentMembership.role !== "ADMIN") {
+  if (currentMembership.role !== "OWNER" && currentMembership.role !== "MANAGER") {
     redirect("/dashboard");
   }
 

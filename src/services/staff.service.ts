@@ -141,8 +141,8 @@ export async function toggleStaffMemberActiveService(
     throw new Error("İşletme sahibi (OWNER) pasife alınamaz.");
   }
 
-  if (targetMember.role === "ADMIN") {
-    throw new Error("İşletme yöneticisi (ADMIN) personel yönetimi üzerinden pasife alınamaz.");
+  if (targetMember.role === "MANAGER") {
+    throw new Error("İşletme yöneticisi (MANAGER) personel yönetimi üzerinden pasife alınamaz.");
   }
 
   const updated = await toggleStaffMemberActive(businessId, memberId, active);
@@ -344,10 +344,10 @@ export function assertCanManageStaffProfile(callerRole: string, targetMemberRole
   if (callerRole === "OWNER") {
     return;
   }
-  if (callerRole === "ADMIN") {
+  if (callerRole === "MANAGER") {
     if (targetMemberRole === "OWNER") {
       throw new ForbiddenError(
-        "Yöneticiler (ADMIN), işletme sahibinin (OWNER) personel profilini veya ayarlarını yönetemez."
+        "İşletme yöneticileri (MANAGER), işletme sahibinin (OWNER) personel profilini veya ayarlarını yönetemez."
       );
     }
     if (targetMemberRole === "STAFF") {

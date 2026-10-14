@@ -11,7 +11,7 @@
    - Base service pricing is set in the `services` table using exact PostgreSQL `numeric(10,2)` storage (never floating-point).
    - Price must be non-negative (`price >= 0`).
 4. **First Service Onboarding**:
-   - Only the authenticated business `OWNER` can create the first service during onboarding (STAFF and ADMIN prohibited).
+   - Only the authenticated business `OWNER` can create the first service during onboarding (STAFF and MANAGER prohibited).
    - First service is created with `active = true` server-side (no toggle exposed in onboarding).
    - Services remain completely dynamic: zero hardcoded barber services, durations, or prices.
    - Successful creation advances onboarding step to `OWNER_STAFF`.
@@ -59,21 +59,34 @@
 5. CRM directory rows, pagination, appointment metrics, history, and internal-note views represent canonical families. Canonical profile fields are authoritative; alias profile values remain searchable historical identities and are not synthesized into the profile.
 6. Historical `customer_notes.customer_id` values remain unchanged. New notes attach to the canonical row; alias-origin notes remain manageable from canonical detail after family authorization.
 7. STAFF may search canonicalized minimum customer fields only for manual booking. STAFF cannot access CRM history, notes, merge lineage, or duplicate review.
-8. Alias detail URLs redirect authorized OWNER/ADMIN users to the canonical URL. Alias profiles cannot be edited directly.
-9. Duplicate candidate detection is advisory and never auto-merges. Merged aliases are not independent candidates; independent canonical families with the same defensible evidence remain visible. OWNER/ADMIN may separately initiate the explicit merge workflow.
+8. Alias detail URLs redirect authorized OWNER/MANAGER users to the canonical URL. Alias profiles cannot be edited directly.
+9. Duplicate candidate detection is advisory and never auto-merges. Merged aliases are not independent candidates; independent canonical families with the same defensible evidence remain visible. OWNER/MANAGER may separately initiate the explicit merge workflow.
 10. The operator must explicitly select the primary customer; there is no preselection or age/activity heuristic. The selected current profile remains authoritative.
 11. Candidate data is a view only. Confirmation reloads and locks the complete eligible group server-side. Stale, ineligible, or concurrent requests fail atomically with typed, sanitized Turkish feedback and are never auto-retried.
 12. A successful merge changes only alias merge metadata, refreshes duplicate/directory/detail reads, and navigates to the selected canonical profile. Customer rows, historical appointment IDs/snapshots, and historical note customer IDs remain unchanged.
-13. Retained alias name, phone, merge time, and optional merge actor are management CRM data visible only to OWNER/ADMIN. Raw IDs/comparison keys are not rendered. V1 has no unmerge operation.
+13. Retained alias name, phone, merge time, and optional merge actor are management CRM data visible only to OWNER/MANAGER. Raw IDs/comparison keys are not rendered. V1 has no unmerge operation.
 
 ---
 
 ## 4. Role & Permission Matrix
 
-| Operation | OWNER | ADMIN | STAFF | Public Customer |
+### Authoritative Role Taxonomy
+
+| Role Domain | System Identifier | Turkish UI Label | Description |
+| :--- | :--- | :--- | :--- |
+| **Platform** | `SUPER_ADMIN` | Süper Yönetici | Complete platform-wide operational authority, root supervision, and provisioning. |
+| **Platform** | `PLATFORM_ADMIN` | Platform Yöneticisi | Standard platform operator managing tenant operational health and queues. |
+| **Business / Tenant** | `OWNER` | İşletme Sahibi | Business account owner with complete authority including settings, managers, staff, and analytics. |
+| **Business / Tenant** | `MANAGER` | İşletme Yöneticisi | Day-to-day business operations, scheduling, staff profile management, and CRM. |
+| **Business / Tenant** | `STAFF` | Personel | Service provider restricted to own daily agenda, assigned appointments, and time blocks. |
+| **Public Actor** | `CUSTOMER` | Müşteri | Accountless retail customer using public booking and capability tokens (not an authenticated user role). |
+
+### Tenant Permission Matrix
+
+| Operation | OWNER | MANAGER | STAFF | CUSTOMER (Public Actor) |
 | :--- | :---: | :---: | :---: | :---: |
 | Modify Business Details | Yes | No | No | No |
-| Manage Admins (`ADMIN` role) | Yes | No | No | No |
+| Manage Managers (`MANAGER` role) | Yes | No | No | No |
 | Manage Staff (`STAFF` role) | Yes | Yes | No | No |
 | Create / Edit / Delete Services | Yes | Yes | No | No |
 | Manage Staff Profiles & Hours | Yes | Yes | No (read own) | No |
@@ -113,7 +126,7 @@
 ## 6. Service Management Rules (Post-Onboarding)
 
 1. **Authorization & RBAC**:
-   - `OWNER` and `ADMIN` have full authority to view, create, edit, and activate/deactivate services for their business.
+   - `OWNER` and `MANAGER` have full authority to view, create, edit, and activate/deactivate services for their business.
    - `STAFF` members are strictly forbidden from managing services (cannot access `/dashboard/services*`, cannot invoke service mutation actions). Authorization is enforced strictly on the server; client-provided roles, user IDs, or business IDs are never trusted.
 2. **Tenant Isolation**:
    - All service operations (listing, creating, updating, toggling active state) are strictly partitioned by `business_id` derived server-side from the authenticated session membership.
@@ -132,7 +145,7 @@
 
 1. **Self-Hosted Manual Invitation Architecture**:
    - No third-party email SaaS, external providers, or background mailers are used.
-   - When an `OWNER` or `ADMIN` creates an invitation, the system generates a secure one-time link (`/staff/setup?token=<raw-token>`) returned strictly once in the UI for manual sharing.
+   - When an `OWNER` or `MANAGER` creates an invitation, the system generates a secure one-time link (`/staff/setup?token=<raw-token>`) returned strictly once in the UI for manual sharing.
 2. **Cryptographic Token Security & Hashing**:
    - Tokens are generated using Node's `crypto.randomBytes(32)` (256-bit entropy).
    - Only the SHA-256 hash is persisted in `staff_invitations.token_hash`. Raw tokens are never stored in the database and never logged.
@@ -142,17 +155,17 @@
    - Every invitation created is strictly for the `STAFF` role, preventing privilege-escalation or spoofing risks.
 4. **Distinct Domain Model Separation**:
    - `Better Auth user`: Authoritative authenticated identity.
-   - `business_member`: Business tenancy membership with role (`OWNER`, `ADMIN`, `STAFF`).
+   - `business_member`: Business tenancy membership with role (`OWNER`, `MANAGER`, `STAFF`).
    - `staff_profile`: Bookable provider on the appointment calendar.
    - Issuing an invitation creates **zero** fake users, memberships, or staff profiles. These are created atomically upon acceptance in TASK 005B.2.
 5. **Duplicate Prevention & Database Uniqueness**:
    - The database enforces at most one `PENDING` invitation per business and normalized email using a partial unique index (`staff_invitations_one_pending_idx`).
    - Existing active members cannot be re-invited. Stale/expired invitations are superseded cleanly.
 6. **Staff Deactivation & Reactivation Lifecycle**:
-   - `OWNER` and `ADMIN` may deactivate or reactivate `STAFF` members.
+   - `OWNER` and `MANAGER` may deactivate or reactivate `STAFF` members.
    - Deactivation sets `business_members.active = false` and cascades to `staff_profiles.active = false` and `staff_profiles.public_booking_enabled = false`.
    - Reactivation restores active flags without creating duplicate records.
-   - `OWNER` and `ADMIN` roles are immutable within staff management and cannot be deactivated.
+   - `OWNER` and `MANAGER` roles are immutable within staff management and cannot be deactivated.
    - Deactivation never physically deletes users, business members, staff profiles, or historical appointments.
 
 ---
@@ -188,8 +201,8 @@
 
 1. **Role Hierarchy & Management RBAC**:
    - `OWNER` users can manage service assignments, toggle public booking, and view profile details for any staff profile in their business (including their own).
-   - `ADMIN` users can view and manage `STAFF` profiles only.
-   - `ADMIN` users are strictly forbidden from viewing or modifying the `OWNER`'s staff profile, role, membership, or booking settings.
+   - `MANAGER` users can view and manage `STAFF` profiles only.
+   - `MANAGER` users are strictly forbidden from viewing or modifying the `OWNER`'s staff profile, role, membership, or booking settings.
    - `STAFF` users are strictly forbidden from managing staff profiles.
 
 2. **Derived Booking Readiness Engine**:
@@ -258,7 +271,7 @@
 
 6. **Authorization & Tenant Isolation**:
    - `OWNER` can view, switch mode, and update working hours for any staff member in their business (including their own).
-   - `ADMIN` can manage `STAFF` profiles only. Any attempt by an `ADMIN` to view or modify an `OWNER` profile's working hours or schedule mode is rejected with a 403 Forbidden error.
+   - `MANAGER` can manage `STAFF` profiles only. Any attempt by a `MANAGER` to view or modify an `OWNER` profile's working hours or schedule mode is rejected with a 403 Forbidden error.
    - `STAFF` users have zero management permissions over working hours or schedule modes.
    - Client action payloads (`saveStaffWorkingHoursAction`, `setStaffScheduleModeAction`) do NOT accept `businessId`. All tenant scopes and caller roles are authoritatively determined from the authenticated session on the server.
 
@@ -307,7 +320,7 @@
 
 7. **Authorization & RBAC Rules**:
    - `OWNER` can view, create, edit, and delete time blocks for any staff member in the business (including their own profile).
-   - `ADMIN` can manage time blocks for `STAFF` profiles only. Any attempt by an `ADMIN` to manage blocks for an `OWNER` profile is rejected with 403 Forbidden.
+   - `MANAGER` can manage time blocks for `STAFF` profiles only. Any attempt by a `MANAGER` to manage blocks for an `OWNER` profile is rejected with 403 Forbidden.
    - `STAFF` users cannot manage time blocks.
    - Multi-tenant isolation: Client payloads never accept `businessId`. The target business ID is derived from the authenticated caller's session, and cross-business block operations are rejected with 404/Forbidden.
 
@@ -390,20 +403,20 @@
 ## 14. Customer CRM & Operational Selection Rules (TASK 013C.1)
 
 1. **Existing Customer Selection in Manual Appointments**:
-   - Authorized operators (`OWNER`, `ADMIN`, and `STAFF` for their own calendar) can select an existing tenant customer when creating a manual appointment.
+   - Authorized operators (`OWNER`, `MANAGER`, and `STAFF` for their own calendar) can select an existing tenant customer when creating a manual appointment.
    - Operators can seamlessly toggle between "Mevcut Müşteri" (search and pick) and "Yeni Müşteri" (manual name/phone entry) modes.
 2. **Profile Mutation Safeguards**:
    - Selecting an existing customer during manual appointment creation **MUST NOT** mutate the customer's CRM profile (`first_name`, `last_name`, `phone`, or existing notes).
    - The appointment transaction links directly to `existingCustomerId` within the verified business tenant, bypassing `upsertCustomer`.
    - Appointment-specific notes are persisted directly to `appointments.notes` and do not alter customer-level internal notes.
 3. **Purpose-Limited Customer Search by Role**:
-   - `searchCustomersForBookingAction`: Permitted for `OWNER`, `ADMIN`, and `STAFF`. Returns minimal operational fields (`id`, `firstName`, `lastName`, `phone`, `appointmentCount`, `lastAppointmentDate`).
-   - Customer CRM directory (`/dashboard/customers`), customer details (`/dashboard/customers/[customerId]`), profile editing, and internal notes remain strictly restricted to `OWNER` and `ADMIN`.
+   - `searchCustomersForBookingAction`: Permitted for `OWNER`, `MANAGER`, and `STAFF`. Returns minimal operational fields (`id`, `firstName`, `lastName`, `phone`, `appointmentCount`, `lastAppointmentDate`).
+   - Customer CRM directory (`/dashboard/customers`), customer details (`/dashboard/customers/[customerId]`), profile editing, and internal notes remain strictly restricted to `OWNER` and `MANAGER`.
    - `STAFF` members are forbidden from accessing the customer directory, profile editing, and internal notes.
 4. **Duplicate Candidate Detection and Explicit Merge**:
    - Duplicate detection groups customer records by canonical E.164 phone comparison keys (`customerPhoneComparisonKey`).
-   - Accessible only at `/dashboard/customers/duplicates` by `OWNER` and `ADMIN` (403 for `STAFF`).
-   - Detection itself is advisory and never performs automatic merge or deletion. OWNER/ADMIN may explicitly enter review, select the canonical customer, review consequences, and confirm the existing logical merge operation.
+   - Accessible only at `/dashboard/customers/duplicates` by `OWNER` and `MANAGER` (403 for `STAFF`).
+   - Detection itself is advisory and never performs automatic merge or deletion. OWNER/MANAGER may explicitly enter review, select the canonical customer, review consequences, and confirm the existing logical merge operation.
 5. **Logical Merge Preservation**:
    - Database trigger `prevent_appointment_column_change()` strictly forbids changing `customer_id` on existing appointments.
    - Historical note customer IDs and customer rows also remain physically unchanged. V1 provides no unmerge operation.
@@ -413,7 +426,7 @@
 ## 15. Logical Customer Merge Foundation Rules (TASK 013C.2A)
 
 1. A canonical customer has no merge target; an alias points directly to one canonical customer in the same business.
-2. Only active tenant `OWNER` and `ADMIN` memberships may execute a logical merge. Platform role alone grants no tenant authority.
+2. Only active tenant `OWNER` and `MANAGER` memberships may execute a logical merge. Platform role alone grants no tenant authority.
 3. V1 merge eligibility requires the same non-empty persisted `phone_comparison_key`; name equality never authorizes merge.
 4. The complete current comparison-key group is reloaded and locked in deterministic UUID order inside one PostgreSQL transaction.
 5. Existing valid alias families are flattened to the newly selected canonical root. Self-merge, cycles, and multi-hop lineage are forbidden.
@@ -487,7 +500,7 @@
 
 ## 20. Booking Policy Settings Rules (TASK 015B)
 
-1. Active tenant `OWNER` and `ADMIN` memberships may read and update `/dashboard/settings/booking`; `STAFF`, unauthenticated users, and platform-only administrators may not.
+1. Active tenant `OWNER` and `MANAGER` memberships may read and update `/dashboard/settings/booking`; `STAFF`, unauthenticated users, and platform-only administrators may not.
 2. Tenant authority is derived server-side. The settings mutation accepts no browser-authoritative business identifier and cannot target another tenant by forged input.
 3. Lead, cancellation notice, and reschedule notice are entered as whole-number amount plus minute/hour/day unit, converted with checked integer arithmetic, and validated against TASK 015A bounds. Decimal, negative, overflow, and excessive values are rejected.
 4. Existing minute values render without precision loss: exact ordinary days are days, exact sub-day hours are hours, zero is minutes, and values such as 1500 minutes remain minutes rather than being rounded or reinterpreted.
@@ -521,7 +534,7 @@
 ## 22. Notification Planning & Settings Rules (TASK 016B)
 
 1. Each business has exactly one notification-settings record. The compatibility-safe defaults are customer notifications disabled, while creation/reschedule/cancellation preferences are enabled beneath that master switch. Existing tenants receive no reminder rules and no historical plans.
-2. Active tenant OWNER and ADMIN memberships may read/update notification settings; STAFF, unauthenticated visitors, and platform-only administrators may not. Tenant identity comes from trusted membership, never a browser business identifier.
+2. Active tenant OWNER and MANAGER memberships may read/update notification settings; STAFF, unauthenticated visitors, and platform-only administrators may not. Tenant identity comes from trusted membership, never a browser business identifier.
 3. A business can retain no more than three reminder offsets. An offset is a unique whole positive canonical minute value from five minutes through thirty days (`43200`); alternate presentations such as 24 hours and one day are the same duplicate.
 4. A notification plan is provider-neutral intent, not a delivery attempt. It may be `PENDING` or `CANCELLED`; sent/delivered/bounced state and channels belong to a later delivery phase.
 5. Plans never persist phone, email, WhatsApp identity, customer/CRM snapshots, raw management capabilities or URLs, provider credentials, or notes. Recipient and any freshly issued capability are resolved transiently by a future delivery layer.
@@ -556,7 +569,7 @@
 
 ## 24. Business Analytics & Query Foundation Rules (TASK 017A)
 
-1. Business analytics data is strictly tenant-private. Access is restricted to active `OWNER` and `ADMIN` roles derived from server session membership. `STAFF` users, unauthenticated visitors, and platform administrators without tenant membership are denied access.
+1. Business analytics data is strictly tenant-private. Access is restricted to active `OWNER` and `MANAGER` roles derived from server session membership. `STAFF` users, unauthenticated visitors, and platform administrators without tenant membership are denied access.
 2. The browser cannot provide an authoritative tenant identifier (`businessId`) or arbitrary SQL date ranges. The tenant is derived server-side, and date ranges are restricted to predefined presets: `TODAY`, `LAST_7_DAYS`, `LAST_30_DAYS`.
 3. Date boundaries are evaluated in the business's authoritative IANA timezone (`businesses.timezone`, e.g. `Europe/Istanbul`) using half-open UTC intervals `[startInstant, endInstant)`. UTC-to-local midnight shifts are correctly handled without day-shifting bugs.
 4. "Completed Service Value" (`Tamamlanan Hizmet Tutarı`) represents the sum of immutable `service_price_snapshot` values for `COMPLETED` appointments only.
@@ -575,7 +588,7 @@
 
 ## 25. Business Dashboard & Analytics UX Rules (TASK 017B)
 
-1. `OWNER` and `ADMIN` users receive the Business Analytics Command Center when visiting `/dashboard`.
+1. `OWNER` and `MANAGER` users receive the Business Analytics Command Center when visiting `/dashboard`.
 2. `STAFF` users accessing `/dashboard` are strictly isolated from business-wide analytics, financial totals, other staff members' workloads, and customer acquisition metrics. `STAFF` receives `StaffDashboardView` showing their personal operational agenda for today.
 3. Range presets are driven by the `?range` search parameter (`TODAY`, `LAST_7_DAYS`, `LAST_30_DAYS`). Missing or invalid parameters safely fall back to `LAST_7_DAYS`.
 4. Booked service value presentation:
@@ -621,7 +634,7 @@
    - `STAFF` members may create and delete temporary personal time blocks (`TIME_OFF`, `BREAK`, `BLOCKED`) for their own staff profile only.
    - A time block must not overlap existing operational appointments (`PENDING`, `CONFIRMED`). On collision, creation is rejected with `TimeBlockAppointmentOverlapError` ("Bu zaman aralığında mevcut bir randevunuz bulunuyor.").
    - `STAFF` cannot delete past time blocks or time blocks belonging to other staff members.
-   - Recurring weekly working schedule management (`saveStaffWorkingHoursAction`) remains strictly reserved for `OWNER` and `ADMIN`.
+   - Recurring weekly working schedule management (`saveStaffWorkingHoursAction`) remains strictly reserved for `OWNER` and `MANAGER`.
 7. **Assigned Services**:
    - `STAFF` may view their assigned services in read-only mode (`assignedServices`: `id`, `name`, `durationMinutes`, `active`).
    - `STAFF` cannot create, edit, or delete services, modify service prices or durations, or alter service assignments.
@@ -660,8 +673,8 @@
 ## 28. Platform Operations Rules (TASK 019A)
 
 1. **Authorization & Role Separation**:
-   - Access to platform operations actions and services is strictly restricted to active `SUPER_ADMIN` and `ADMIN` records in `platform_users`.
-   - Tenant members (even business `OWNER`s or `ADMIN`s), staff members, customers, and unauthenticated sessions receive no platform administrative authority and are rejected with typed `ForbiddenError` or `UnauthorizedError`.
+   - Access to platform operations actions and services is strictly restricted to active `SUPER_ADMIN` and `PLATFORM_ADMIN` records in `platform_users`.
+   - Tenant members (even business `OWNER`s or `MANAGER`s), staff members, customers, and unauthenticated sessions receive no platform administrative authority and are rejected with typed `ForbiddenError` or `UnauthorizedError`.
 2. **Customer Privacy Boundary & Zero PII Exposure**:
    - Platform operations read models (`PlatformOperationsSummary`, `PlatformBusinessOperationsSummary`, `PlatformBusinessOperationsDetail`) must NEVER disclose customer personal identifiable information (`firstName`, `lastName`, `phone`, `email`).
    - Customer CRM notes, customer merge histories, duplicate candidate records, and customer directories are completely inaccessible to platform operators.
@@ -702,7 +715,7 @@
 ## 29. Platform Operations Console UX Rules (TASK 019B)
 
 1. **Platform Route Guarding & Context Isolation**:
-   - `/platform`, `/platform/businesses`, and `/platform/businesses/[businessId]` are accessible exclusively to authenticated `SUPER_ADMIN` and `ADMIN` users.
+   - `/platform`, `/platform/businesses`, and `/platform/businesses/[businessId]` are accessible exclusively to authenticated `SUPER_ADMIN` and `PLATFORM_ADMIN` users.
    - Non-platform users attempting to access `/platform` receive redirect or `ForbiddenError`.
    - Platform admin login flows must utilize `/login?returnTo=/platform` to prevent redirection to `/dashboard` for admins without tenant business memberships.
 2. **Deterministic Health Badge & Active Business Semantics**:

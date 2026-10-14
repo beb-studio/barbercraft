@@ -1146,7 +1146,7 @@ export type Database = {
         | "APPOINTMENT_CANCELLED";
       appointment_source: "PUBLIC_WEB" | "MANUAL_ADMIN" | "MANUAL_STAFF";
       appointment_status: "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED" | "NO_SHOW";
-      business_member_role: "OWNER" | "ADMIN" | "STAFF";
+      business_member_role: "OWNER" | "MANAGER" | "STAFF";
       notification_delivery_channel: "SMS";
       notification_delivery_status: "PENDING" | "PROCESSING" | "SENT" | "FAILED" | "CANCELLED";
       notification_outbox_status: "PENDING" | "PROCESSING" | "PROCESSED" | "FAILED";
@@ -1156,7 +1156,7 @@ export type Database = {
         | "APPOINTMENT_RESCHEDULED"
         | "APPOINTMENT_CANCELLED"
         | "APPOINTMENT_REMINDER";
-      platform_admin_role: "SUPER_ADMIN" | "ADMIN";
+      platform_admin_role: "SUPER_ADMIN" | "PLATFORM_ADMIN";
       time_block_type: "TIME_OFF" | "BREAK" | "BLOCKED";
     };
     CompositeTypes: {
@@ -1280,7 +1280,7 @@ export const Constants = {
       ],
       appointment_source: ["PUBLIC_WEB", "MANUAL_ADMIN", "MANUAL_STAFF"],
       appointment_status: ["PENDING", "CONFIRMED", "CANCELLED", "COMPLETED", "NO_SHOW"],
-      business_member_role: ["OWNER", "ADMIN", "STAFF"],
+      business_member_role: ["OWNER", "MANAGER", "STAFF"],
       notification_delivery_channel: ["SMS"],
       notification_delivery_status: ["PENDING", "PROCESSING", "SENT", "FAILED", "CANCELLED"],
       notification_outbox_status: ["PENDING", "PROCESSING", "PROCESSED", "FAILED"],
@@ -1291,7 +1291,7 @@ export const Constants = {
         "APPOINTMENT_CANCELLED",
         "APPOINTMENT_REMINDER",
       ],
-      platform_admin_role: ["SUPER_ADMIN", "ADMIN"],
+      platform_admin_role: ["SUPER_ADMIN", "PLATFORM_ADMIN"],
       time_block_type: ["TIME_OFF", "BREAK", "BLOCKED"],
     },
   },

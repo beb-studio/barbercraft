@@ -17,7 +17,7 @@ export const BUSINESS_HEALTH_REASON_LABELS: Record<BusinessHealthReasonCode, str
 
 export interface PlatformMemberCounts {
   owner: number;
-  admin: number;
+  manager: number;
   staff: number;
   totalActive: number;
 }

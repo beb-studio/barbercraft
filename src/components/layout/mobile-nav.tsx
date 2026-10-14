@@ -24,7 +24,7 @@ export function MobileNav({ variant = "public", userRole }: MobileNavProps) {
       : [
           { href: "/dashboard", label: "Genel Bakış", icon: LayoutDashboard },
           { href: "/dashboard/appointments", label: "Randevular", icon: Calendar },
-          ...(userRole === "OWNER" || userRole === "ADMIN"
+          ...(userRole === "OWNER" || userRole === "MANAGER"
             ? [
                 { href: "/dashboard/services", label: "Hizmetler", icon: Scissors },
                 { href: "/dashboard/staff", label: "Personel", icon: Users },

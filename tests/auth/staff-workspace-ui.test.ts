@@ -80,7 +80,7 @@ before(async () => {
   // 3. Seed Business Members
   await db.insert(schema.businessMembers).values([
     { id: ids.ownerMemberA, businessId: ids.businessA, userId: ids.ownerA, role: "OWNER" },
-    { id: ids.adminMemberA, businessId: ids.businessA, userId: ids.adminA, role: "ADMIN" },
+    { id: ids.adminMemberA, businessId: ids.businessA, userId: ids.adminA, role: "MANAGER" },
     { id: ids.staffMemberA, businessId: ids.businessA, userId: ids.staffA, role: "STAFF" },
     { id: ids.staffMemberB, businessId: ids.businessA, userId: ids.staffB, role: "STAFF" },
   ]);
@@ -417,7 +417,7 @@ describe("TASK 018B: Staff Mobile Workspace UX & Role Scoping", () => {
       assert.match(shellCode, /label:\s*"Yeni Randevu"/);
 
       // Inaccessible management links are strictly hidden for STAFF
-      assert.match(shellCode, /userRole === "OWNER" \|\| userRole === "ADMIN"/);
+      assert.match(shellCode, /userRole === "OWNER" \|\| userRole === "MANAGER"/);
     });
 
     it("source audit: verifies MobileNav component provides operational links to STAFF without Ayarlar", async () => {

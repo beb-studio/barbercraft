@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdminOrOwner, requireSession } from "@/lib/auth/guards";
+import { requireManagerOrOwner, requireSession } from "@/lib/auth/guards";
 import { getMemberships } from "@/lib/auth/session";
 import {
   isNotificationReminderTimeUnit,
@@ -113,7 +113,7 @@ export async function updateBusinessNotificationSettingsAction(
         error: "Bu ayarları değiştirme yetkiniz yok.",
       };
     }
-    await requireAdminOrOwner(membership.business_id);
+    await requireManagerOrOwner(membership.business_id);
     if (typeof payload.expectedVersion !== "string" || !payload.expectedVersion) {
       return {
         success: false,

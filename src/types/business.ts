@@ -9,3 +9,4 @@ export type BusinessWorkingHours = Tables<"business_working_hours">;
 
 /** Authenticated membership roles. A public customer is NOT a role. */
 export type BusinessMemberRole = Enums<"business_member_role">;
+export type BusinessRole = BusinessMemberRole;

@@ -35,7 +35,7 @@ export async function getBusinessDashboardAnalyticsAction(
       };
     }
 
-    if (membership.role !== "OWNER" && membership.role !== "ADMIN") {
+    if (membership.role !== "OWNER" && membership.role !== "MANAGER") {
       return {
         success: false,
         error: "Bu işlem için yetkiniz bulunmuyor. Yalnızca işletme sahibi ve yöneticiler erişebilir.",

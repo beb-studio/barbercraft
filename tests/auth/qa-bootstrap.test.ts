@@ -152,7 +152,7 @@ describe("PRE-011: QA Bootstrap & Route Security Audit Tests", () => {
     );
   });
 
-  it("7. BUSINESS ADMIN cannot access /platform", async () => {
+  it("7. BUSINESS MANAGER cannot access /platform", async () => {
     mockSession(bootstrapResult.users.admin.id);
     await assert.rejects(
       async () => {
@@ -184,12 +184,12 @@ describe("PRE-011: QA Bootstrap & Route Security Audit Tests", () => {
     assert.equal(step, "COMPLETED", "Owner onboarding step should be COMPLETED");
   });
 
-  it("10. ADMIN can access dashboard according to existing business rules", async () => {
+  it("10. MANAGER can access dashboard according to existing business rules", async () => {
     mockSession(bootstrapResult.users.admin.id);
     const step = await onboardingModule.getOnboardingStep();
-    assert.equal(step, "NOT_APPLICABLE", "Admin onboarding step should be NOT_APPLICABLE");
+    assert.equal(step, "NOT_APPLICABLE", "Manager onboarding step should be NOT_APPLICABLE");
     const { user, membership } = await guardsModule.requireBusinessMembership(bootstrapResult.business.id);
-    assert.equal(membership.role, "ADMIN");
+    assert.equal(membership.role, "MANAGER");
     assert.equal(user.id, bootstrapResult.users.admin.id);
   });
 

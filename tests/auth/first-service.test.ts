@@ -90,7 +90,7 @@ before(async () => {
     { businessId: bizIncompleteHours, userId: userIncompleteHoursOwner, role: "OWNER" },
     { businessId: biz1, userId: userOwner1, role: "OWNER" },
     { businessId: biz1, userId: userStaff, role: "STAFF" },
-    { businessId: biz1, userId: userAdmin, role: "ADMIN" },
+    { businessId: biz1, userId: userAdmin, role: "MANAGER" },
     { businessId: biz2, userId: userOwner2, role: "OWNER" },
   ]);
 

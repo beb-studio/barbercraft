@@ -26,7 +26,7 @@ export default async function EditServicePage({ params }: EditServicePageProps) 
   }
 
   // RBAC Boundary: STAFF is strictly forbidden from service editing
-  if (currentMembership.role !== "OWNER" && currentMembership.role !== "ADMIN") {
+  if (currentMembership.role !== "OWNER" && currentMembership.role !== "MANAGER") {
     redirect("/dashboard");
   }
 

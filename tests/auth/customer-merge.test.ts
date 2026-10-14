@@ -88,7 +88,7 @@ before(async () => {
   ]);
   await db.insert(schema.businessMembers).values([
     { id: member.owner, businessId: business.a, userId: user.owner, role: "OWNER" },
-    { id: member.admin, businessId: business.a, userId: user.admin, role: "ADMIN" },
+    { id: member.admin, businessId: business.a, userId: user.admin, role: "MANAGER" },
     { id: member.staff, businessId: business.a, userId: user.staff, role: "STAFF" },
     { id: member.ownerB, businessId: business.b, userId: user.ownerB, role: "OWNER" },
   ]);

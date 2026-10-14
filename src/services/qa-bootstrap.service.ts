@@ -19,14 +19,25 @@ import {
 import { eq, and } from "drizzle-orm";
 
 export interface QACredentials {
-  superAdminEmail: string;
-  superAdminPassword: string;
-  ownerEmail: string;
-  ownerPassword: string;
-  adminEmail: string;
-  adminPassword: string;
-  staffEmail: string;
-  staffPassword: string;
+  superAdminEmail?: string;
+  superAdminPassword?: string;
+  platformAdminEmail?: string;
+  platformAdminPassword?: string;
+  ownerEmail?: string;
+  ownerPassword?: string;
+  managerEmail?: string;
+  managerPassword?: string;
+  // Legacy alias for manager
+  adminEmail?: string;
+  adminPassword?: string;
+  staffEmail?: string;
+  staffPassword?: string;
+  staff2Email?: string;
+  staff2Password?: string;
+  owner2Email?: string;
+  owner2Password?: string;
+  staff3Email?: string;
+  staff3Password?: string;
 }
 
 export interface QABootstrapResult {
@@ -35,22 +46,35 @@ export interface QABootstrapResult {
     slug: string;
     name: string;
   };
+  secondBusiness: {
+    id: string;
+    slug: string;
+    name: string;
+  };
   users: {
     superAdmin: { id: string; email: string };
+    platformAdmin: { id: string; email: string };
     owner: { id: string; email: string };
-    admin: { id: string; email: string };
+    manager: { id: string; email: string };
+    admin: { id: string; email: string }; // Backward-compatible alias
     staff: { id: string; email: string };
+    staff2: { id: string; email: string };
+    owner2: { id: string; email: string };
+    staff3: { id: string; email: string };
   };
   staffProfiles: {
     ownerStaffId: string;
     staffStaffId: string;
+    staff2StaffId: string;
+    owner2StaffId: string;
+    staff3StaffId: string;
   };
   services: Array<{ id: string; name: string }>;
 }
 
 /**
  * Creates or retrieves a Better Auth user safely and idempotently.
- * Uses official Better Auth signUpEmail mechanism for credential generation.
+ * Uses trusted administrative account creation for credential generation.
  */
 async function getOrCreateUser(
   email: string,
@@ -117,42 +141,55 @@ export async function bootstrapQA(credentials: QACredentials): Promise<QABootstr
     );
   }
 
-  // 1. Create or retrieve the 4 required Better Auth users
-  const superAdminUser = await getOrCreateUser(
-    credentials.superAdminEmail,
-    credentials.superAdminPassword,
-    "QA Süper Admin"
-  );
+  const defaultPassword = "BarberCraft-QA-4380!";
 
-  const ownerUser = await getOrCreateUser(
-    credentials.ownerEmail,
-    credentials.ownerPassword,
-    "QA İşletme Sahibi"
-  );
+  // 1. Resolve Canonical QA Identities & Credentials
+  const superAdminEmail = credentials.superAdminEmail || "qa.superadmin@local.test";
+  const superAdminPassword = credentials.superAdminPassword || defaultPassword;
 
-  const adminUser = await getOrCreateUser(
-    credentials.adminEmail,
-    credentials.adminPassword,
-    "QA İşletme Yöneticisi"
-  );
+  const platformAdminEmail = credentials.platformAdminEmail || "qa.platformadmin@local.test";
+  const platformAdminPassword = credentials.platformAdminPassword || defaultPassword;
 
-  const staffUser = await getOrCreateUser(
-    credentials.staffEmail,
-    credentials.staffPassword,
-    "QA Personel"
-  );
+  const ownerEmail = credentials.ownerEmail || "qa.owner@local.test";
+  const ownerPassword = credentials.ownerPassword || defaultPassword;
 
-  // 2. Ensure PLATFORM SUPER_ADMIN record
-  const [existingPlatformAdmin] = await db
+  const managerEmail = credentials.managerEmail || credentials.adminEmail || "qa.manager@local.test";
+  const managerPassword = credentials.managerPassword || credentials.adminPassword || defaultPassword;
+
+  const staffEmail = credentials.staffEmail || "qa.staff@local.test";
+  const staffPassword = credentials.staffPassword || defaultPassword;
+
+  const staff2Email = credentials.staff2Email || "qa.staff2@local.test";
+  const staff2Password = credentials.staff2Password || defaultPassword;
+
+  const owner2Email = credentials.owner2Email || "qa.owner2@local.test";
+  const owner2Password = credentials.owner2Password || defaultPassword;
+
+  const staff3Email = credentials.staff3Email || "qa.staff3@local.test";
+  const staff3Password = credentials.staff3Password || defaultPassword;
+
+  // 2. Create or retrieve all 8 canonical Better Auth users
+  const superAdminUser = await getOrCreateUser(superAdminEmail, superAdminPassword, "QA Süper Yönetici");
+  const platformAdminUser = await getOrCreateUser(platformAdminEmail, platformAdminPassword, "QA Platform Yöneticisi");
+  const ownerUser = await getOrCreateUser(ownerEmail, ownerPassword, "QA İşletme Sahibi");
+  const managerUser = await getOrCreateUser(managerEmail, managerPassword, "QA İşletme Yöneticisi");
+  const staffUser = await getOrCreateUser(staffEmail, staffPassword, "QA Personel");
+  const staff2User = await getOrCreateUser(staff2Email, staff2Password, "QA Personel 2");
+  const owner2User = await getOrCreateUser(owner2Email, owner2Password, "QA İşletme Sahibi 2");
+  const staff3User = await getOrCreateUser(staff3Email, staff3Password, "QA Personel 3");
+
+  // 3. Ensure Platform Admin Records
+  // 3.1 SUPER_ADMIN
+  const [existingSuperAdmin] = await db
     .select({ id: platformAdmins.id })
     .from(platformAdmins)
     .where(eq(platformAdmins.userId, superAdminUser.id));
 
-  if (existingPlatformAdmin) {
+  if (existingSuperAdmin) {
     await db
       .update(platformAdmins)
       .set({ role: "SUPER_ADMIN", active: true, updatedAt: new Date() })
-      .where(eq(platformAdmins.id, existingPlatformAdmin.id));
+      .where(eq(platformAdmins.id, existingSuperAdmin.id));
   } else {
     await db.insert(platformAdmins).values({
       userId: superAdminUser.id,
@@ -161,7 +198,26 @@ export async function bootstrapQA(credentials: QACredentials): Promise<QABootstr
     });
   }
 
-  // 3. Ensure QA BUSINESS (slug: qa-berber)
+  // 3.2 PLATFORM_ADMIN
+  const [existingPlatformAdmin] = await db
+    .select({ id: platformAdmins.id })
+    .from(platformAdmins)
+    .where(eq(platformAdmins.userId, platformAdminUser.id));
+
+  if (existingPlatformAdmin) {
+    await db
+      .update(platformAdmins)
+      .set({ role: "PLATFORM_ADMIN", active: true, updatedAt: new Date() })
+      .where(eq(platformAdmins.id, existingPlatformAdmin.id));
+  } else {
+    await db.insert(platformAdmins).values({
+      userId: platformAdminUser.id,
+      role: "PLATFORM_ADMIN",
+      active: true,
+    });
+  }
+
+  // 4. Ensure Primary Business: QA Berber (slug: qa-berber)
   const businessSlug = "qa-berber";
   const [existingBiz] = await db
     .select()
@@ -207,9 +263,7 @@ export async function bootstrapQA(credentials: QACredentials): Promise<QABootstr
     businessId = createdBiz.id;
   }
 
-  // Keep QA notification behavior inert and deterministic. The database
-  // trigger covers newly created businesses; this upsert also normalizes a
-  // pre-existing QA tenant without ever creating a recipient or plan.
+  // Primary business notification behavior: inert and deterministic
   await db
     .insert(businessNotificationSettings)
     .values({
@@ -232,8 +286,8 @@ export async function bootstrapQA(credentials: QACredentials): Promise<QABootstr
     .delete(businessNotificationReminderRules)
     .where(eq(businessNotificationReminderRules.businessId, businessId));
 
-  // 4. Ensure Business Memberships
-  // OWNER
+  // 5. Ensure Memberships for Primary Business (QA Berber)
+  // 5.1 OWNER
   const [ownerForThisUser] = await db
     .select({ id: businessMembers.id })
     .from(businessMembers)
@@ -282,49 +336,66 @@ export async function bootstrapQA(credentials: QACredentials): Promise<QABootstr
     }
   }
 
-  // ADMIN
-  const [adminForThisUser] = await db
+  // 5.2 Legacy qa.admin reconciliation:
+  // If legacy qa.admin fixture user exists and is distinct from managerUser, remove its membership
+  const [legacyAdminUser] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.email, "qa.admin@local.test"));
+  if (legacyAdminUser && legacyAdminUser.id !== managerUser.id) {
+    await db
+      .delete(businessMembers)
+      .where(
+        and(
+          eq(businessMembers.businessId, businessId),
+          eq(businessMembers.userId, legacyAdminUser.id)
+        )
+      );
+  }
+
+  // 5.3 MANAGER
+  const [managerForThisUser] = await db
     .select({ id: businessMembers.id })
     .from(businessMembers)
     .where(
       and(
         eq(businessMembers.businessId, businessId),
-        eq(businessMembers.userId, adminUser.id)
+        eq(businessMembers.userId, managerUser.id)
       )
     );
 
-  if (adminForThisUser) {
+  if (managerForThisUser) {
     await db
       .update(businessMembers)
-      .set({ role: "ADMIN", active: true, updatedAt: new Date() })
-      .where(eq(businessMembers.id, adminForThisUser.id));
+      .set({ role: "MANAGER", active: true, updatedAt: new Date() })
+      .where(eq(businessMembers.id, managerForThisUser.id));
   } else {
-    const [existingAdmin] = await db
+    const [existingManager] = await db
       .select({ id: businessMembers.id })
       .from(businessMembers)
       .where(
         and(
           eq(businessMembers.businessId, businessId),
-          eq(businessMembers.role, "ADMIN")
+          eq(businessMembers.role, "MANAGER")
         )
       );
 
-    if (existingAdmin) {
+    if (existingManager) {
       await db
         .update(businessMembers)
-        .set({ userId: adminUser.id, active: true, updatedAt: new Date() })
-        .where(eq(businessMembers.id, existingAdmin.id));
+        .set({ userId: managerUser.id, active: true, updatedAt: new Date() })
+        .where(eq(businessMembers.id, existingManager.id));
     } else {
       await db.insert(businessMembers).values({
         businessId,
-        userId: adminUser.id,
-        role: "ADMIN",
+        userId: managerUser.id,
+        role: "MANAGER",
         active: true,
       });
     }
   }
 
-  // STAFF
+  // 5.4 STAFF 1
   const [staffForThisUser] = await db
     .select({ id: businessMembers.id })
     .from(businessMembers)
@@ -373,8 +444,39 @@ export async function bootstrapQA(credentials: QACredentials): Promise<QABootstr
     }
   }
 
-  // 5. Ensure Staff Profiles (2 bookable staff: Owner + Staff)
-  // Profile 1: Owner as staff
+  // 5.5 STAFF 2
+  const [staff2ForThisUser] = await db
+    .select({ id: businessMembers.id })
+    .from(businessMembers)
+    .where(
+      and(
+        eq(businessMembers.businessId, businessId),
+        eq(businessMembers.userId, staff2User.id)
+      )
+    );
+
+  let staff2MemberId: string;
+  if (staff2ForThisUser) {
+    staff2MemberId = staff2ForThisUser.id;
+    await db
+      .update(businessMembers)
+      .set({ role: "STAFF", active: true, updatedAt: new Date() })
+      .where(eq(businessMembers.id, staff2ForThisUser.id));
+  } else {
+    const [created] = await db
+      .insert(businessMembers)
+      .values({
+        businessId,
+        userId: staff2User.id,
+        role: "STAFF",
+        active: true,
+      })
+      .returning();
+    staff2MemberId = created.id;
+  }
+
+  // 6. Ensure Staff Profiles for Primary Business
+  // Profile 1: Owner as staff (Ahmet Usta)
   const [existingOwnerStaff] = await db
     .select({ id: staffProfiles.id })
     .from(staffProfiles)
@@ -410,7 +512,7 @@ export async function bootstrapQA(credentials: QACredentials): Promise<QABootstr
     ownerStaffId = created.id;
   }
 
-  // Profile 2: Dedicated Staff
+  // Profile 2: Dedicated Staff (Mehmet Kalfa)
   const [existingStaffStaff] = await db
     .select({ id: staffProfiles.id })
     .from(staffProfiles)
@@ -446,7 +548,43 @@ export async function bootstrapQA(credentials: QACredentials): Promise<QABootstr
     staffStaffId = created.id;
   }
 
-  // 6. Ensure Business Working Hours (all 7 days, 09:00 - 19:00)
+  // Profile 3: Second Dedicated Staff (Ali Kalfa)
+  const [existingStaff2] = await db
+    .select({ id: staffProfiles.id })
+    .from(staffProfiles)
+    .where(eq(staffProfiles.businessMemberId, staff2MemberId));
+
+  let staff2StaffId: string;
+  if (existingStaff2) {
+    staff2StaffId = existingStaff2.id;
+    await db
+      .update(staffProfiles)
+      .set({
+        firstName: "Ali",
+        lastName: "Kalfa",
+        active: true,
+        publicBookingEnabled: true,
+        usesBusinessHours: true,
+        updatedAt: new Date(),
+      })
+      .where(eq(staffProfiles.id, existingStaff2.id));
+  } else {
+    const [created] = await db
+      .insert(staffProfiles)
+      .values({
+        businessId,
+        businessMemberId: staff2MemberId,
+        firstName: "Ali",
+        lastName: "Kalfa",
+        active: true,
+        publicBookingEnabled: true,
+        usesBusinessHours: true,
+      })
+      .returning();
+    staff2StaffId = created.id;
+  }
+
+  // 7. Ensure Working Hours for Primary Business (09:00 - 19:00 all 7 days)
   for (let day = 0; day <= 6; day++) {
     const [existingHour] = await db
       .select({ id: businessWorkingHours.id })
@@ -479,9 +617,9 @@ export async function bootstrapQA(credentials: QACredentials): Promise<QABootstr
     }
   }
 
-  // 7. Ensure Staff Working Hours (for custom hours fallback)
-  const staffProfileIds = [ownerStaffId, staffStaffId];
-  for (const sId of staffProfileIds) {
+  // 8. Ensure Staff Working Hours for Primary Business Profiles
+  const primaryStaffProfileIds = [ownerStaffId, staffStaffId, staff2StaffId];
+  for (const sId of primaryStaffProfileIds) {
     for (let day = 0; day <= 6; day++) {
       const [existingSwh] = await db
         .select({ id: staffWorkingHours.id })
@@ -517,7 +655,7 @@ export async function bootstrapQA(credentials: QACredentials): Promise<QABootstr
     }
   }
 
-  // 8. Ensure Services
+  // 9. Ensure Services for Primary Business
   const defaultServices = [
     { name: "Saç Kesimi", durationMinutes: 30, price: "250.00" },
     { name: "Sakal Tıraşı", durationMinutes: 20, price: "150.00" },
@@ -563,8 +701,8 @@ export async function bootstrapQA(credentials: QACredentials): Promise<QABootstr
     }
   }
 
-  // 9. Assign Services to Staff Profiles
-  for (const sId of staffProfileIds) {
+  // Assign Services to Primary Staff Profiles
+  for (const sId of primaryStaffProfileIds) {
     for (const svc of seededServices) {
       const [existingAssigned] = await db
         .select()
@@ -586,7 +724,7 @@ export async function bootstrapQA(credentials: QACredentials): Promise<QABootstr
     }
   }
 
-  // 10. Sample Customer and Initial Appointment for Dashboard Testing
+  // 10. Sample Customer and Initial Appointment for Primary Business
   const customerPhone = "+905551234567";
   const normalizedPhone = "905551234567";
   const phoneComparisonKey = "+905551234567";
@@ -619,7 +757,6 @@ export async function bootstrapQA(credentials: QACredentials): Promise<QABootstr
     customerId = createdCust.id;
   }
 
-  // Check if appointments already exist for this business
   const [existingAppt] = await db
     .select({ id: appointments.id })
     .from(appointments)
@@ -627,7 +764,6 @@ export async function bootstrapQA(credentials: QACredentials): Promise<QABootstr
     .limit(1);
 
   if (!existingAppt && seededServices.length > 0) {
-    // Create one sample future appointment
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     tomorrow.setHours(10, 0, 0, 0);
@@ -649,21 +785,268 @@ export async function bootstrapQA(credentials: QACredentials): Promise<QABootstr
     });
   }
 
+  // 11. Ensure Second Business: QA Berber 2 (slug: qa-berber-2) for cross-tenant isolation testing
+  const secondBusinessSlug = "qa-berber-2";
+  const [existingBiz2] = await db
+    .select()
+    .from(businesses)
+    .where(eq(businesses.slug, secondBusinessSlug));
+
+  let secondBusinessId: string;
+  if (existingBiz2) {
+    secondBusinessId = existingBiz2.id;
+    await db
+      .update(businesses)
+      .set({
+        name: "QA Berber 2",
+        active: true,
+        onboardingCompletedAt: existingBiz2.onboardingCompletedAt ?? new Date(),
+        timezone: "Europe/Istanbul",
+        currency: "TRY",
+        bookingIntervalMinutes: 15,
+        minimumBookingLeadMinutes: 0,
+        maximumAdvanceBookingDays: null,
+        cancellationNoticeMinutes: 0,
+        rescheduleNoticeMinutes: 0,
+        updatedAt: new Date(),
+      })
+      .where(eq(businesses.id, existingBiz2.id));
+  } else {
+    const [createdBiz2] = await db
+      .insert(businesses)
+      .values({
+        name: "QA Berber 2",
+        slug: secondBusinessSlug,
+        timezone: "Europe/Istanbul",
+        currency: "TRY",
+        bookingIntervalMinutes: 15,
+        minimumBookingLeadMinutes: 0,
+        maximumAdvanceBookingDays: null,
+        cancellationNoticeMinutes: 0,
+        rescheduleNoticeMinutes: 0,
+        active: true,
+        onboardingCompletedAt: new Date(),
+      })
+      .returning();
+    secondBusinessId = createdBiz2.id;
+  }
+
+  // Inert notification settings for second business
+  await db
+    .insert(businessNotificationSettings)
+    .values({
+      businessId: secondBusinessId,
+      customerNotificationsEnabled: false,
+      appointmentCreatedEnabled: true,
+      appointmentRescheduledEnabled: true,
+      appointmentCancelledEnabled: true,
+    })
+    .onConflictDoUpdate({
+      target: businessNotificationSettings.businessId,
+      set: {
+        customerNotificationsEnabled: false,
+        appointmentCreatedEnabled: true,
+        appointmentRescheduledEnabled: true,
+        appointmentCancelledEnabled: true,
+      },
+    });
+
+  // Second Business Memberships (OWNER: owner2User, STAFF: staff3User)
+  // OWNER 2
+  const [owner2Membership] = await db
+    .select({ id: businessMembers.id })
+    .from(businessMembers)
+    .where(
+      and(
+        eq(businessMembers.businessId, secondBusinessId),
+        eq(businessMembers.userId, owner2User.id)
+      )
+    );
+
+  let owner2MemberId: string;
+  if (owner2Membership) {
+    owner2MemberId = owner2Membership.id;
+    await db
+      .update(businessMembers)
+      .set({ role: "OWNER", active: true, updatedAt: new Date() })
+      .where(eq(businessMembers.id, owner2Membership.id));
+  } else {
+    const [created] = await db
+      .insert(businessMembers)
+      .values({
+        businessId: secondBusinessId,
+        userId: owner2User.id,
+        role: "OWNER",
+        active: true,
+      })
+      .returning();
+    owner2MemberId = created.id;
+  }
+
+  // STAFF 3
+  const [staff3Membership] = await db
+    .select({ id: businessMembers.id })
+    .from(businessMembers)
+    .where(
+      and(
+        eq(businessMembers.businessId, secondBusinessId),
+        eq(businessMembers.userId, staff3User.id)
+      )
+    );
+
+  let staff3MemberId: string;
+  if (staff3Membership) {
+    staff3MemberId = staff3Membership.id;
+    await db
+      .update(businessMembers)
+      .set({ role: "STAFF", active: true, updatedAt: new Date() })
+      .where(eq(businessMembers.id, staff3Membership.id));
+  } else {
+    const [created] = await db
+      .insert(businessMembers)
+      .values({
+        businessId: secondBusinessId,
+        userId: staff3User.id,
+        role: "STAFF",
+        active: true,
+      })
+      .returning();
+    staff3MemberId = created.id;
+  }
+
+  // Staff Profile: Owner 2 (Murat Usta)
+  const [existingOwner2Profile] = await db
+    .select({ id: staffProfiles.id })
+    .from(staffProfiles)
+    .where(eq(staffProfiles.businessMemberId, owner2MemberId));
+
+  let owner2StaffId: string;
+  if (existingOwner2Profile) {
+    owner2StaffId = existingOwner2Profile.id;
+    await db
+      .update(staffProfiles)
+      .set({
+        firstName: "Murat",
+        lastName: "Usta",
+        active: true,
+        publicBookingEnabled: true,
+        usesBusinessHours: true,
+        updatedAt: new Date(),
+      })
+      .where(eq(staffProfiles.id, existingOwner2Profile.id));
+  } else {
+    const [created] = await db
+      .insert(staffProfiles)
+      .values({
+        businessId: secondBusinessId,
+        businessMemberId: owner2MemberId,
+        firstName: "Murat",
+        lastName: "Usta",
+        active: true,
+        publicBookingEnabled: true,
+        usesBusinessHours: true,
+      })
+      .returning();
+    owner2StaffId = created.id;
+  }
+
+  // Staff Profile: Staff 3 (Kemal Kalfa)
+  const [existingStaff3Profile] = await db
+    .select({ id: staffProfiles.id })
+    .from(staffProfiles)
+    .where(eq(staffProfiles.businessMemberId, staff3MemberId));
+
+  let staff3StaffId: string;
+  if (existingStaff3Profile) {
+    staff3StaffId = existingStaff3Profile.id;
+    await db
+      .update(staffProfiles)
+      .set({
+        firstName: "Kemal",
+        lastName: "Kalfa",
+        active: true,
+        publicBookingEnabled: true,
+        usesBusinessHours: true,
+        updatedAt: new Date(),
+      })
+      .where(eq(staffProfiles.id, existingStaff3Profile.id));
+  } else {
+    const [created] = await db
+      .insert(staffProfiles)
+      .values({
+        businessId: secondBusinessId,
+        businessMemberId: staff3MemberId,
+        firstName: "Kemal",
+        lastName: "Kalfa",
+        active: true,
+        publicBookingEnabled: true,
+        usesBusinessHours: true,
+      })
+      .returning();
+    staff3StaffId = created.id;
+  }
+
+  // Second Business Working Hours (all 7 days)
+  for (let day = 0; day <= 6; day++) {
+    const [existingHour2] = await db
+      .select({ id: businessWorkingHours.id })
+      .from(businessWorkingHours)
+      .where(
+        and(
+          eq(businessWorkingHours.businessId, secondBusinessId),
+          eq(businessWorkingHours.dayOfWeek, day)
+        )
+      );
+
+    if (existingHour2) {
+      await db
+        .update(businessWorkingHours)
+        .set({
+          isClosed: false,
+          startTime: "09:00",
+          endTime: "19:00",
+          updatedAt: new Date(),
+        })
+        .where(eq(businessWorkingHours.id, existingHour2.id));
+    } else {
+      await db.insert(businessWorkingHours).values({
+        businessId: secondBusinessId,
+        dayOfWeek: day,
+        startTime: "09:00",
+        endTime: "19:00",
+        isClosed: false,
+      });
+    }
+  }
+
   return {
     business: {
       id: businessId,
       slug: businessSlug,
       name: "QA Berber",
     },
+    secondBusiness: {
+      id: secondBusinessId,
+      slug: secondBusinessSlug,
+      name: "QA Berber 2",
+    },
     users: {
       superAdmin: { id: superAdminUser.id, email: superAdminUser.email },
+      platformAdmin: { id: platformAdminUser.id, email: platformAdminUser.email },
       owner: { id: ownerUser.id, email: ownerUser.email },
-      admin: { id: adminUser.id, email: adminUser.email },
+      manager: { id: managerUser.id, email: managerUser.email },
+      admin: { id: managerUser.id, email: managerUser.email },
       staff: { id: staffUser.id, email: staffUser.email },
+      staff2: { id: staff2User.id, email: staff2User.email },
+      owner2: { id: owner2User.id, email: owner2User.email },
+      staff3: { id: staff3User.id, email: staff3User.email },
     },
     staffProfiles: {
       ownerStaffId,
       staffStaffId,
+      staff2StaffId,
+      owner2StaffId,
+      staff3StaffId,
     },
     services: seededServices,
   };

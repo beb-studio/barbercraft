@@ -113,8 +113,8 @@ before(async () => {
   // Seed Platform Admins
   await db.insert(schema.platformAdmins).values([
     { id: ids.platformAdminSuper, userId: ids.userSuperAdmin, role: "SUPER_ADMIN", active: true },
-    { id: ids.platformAdminActive, userId: ids.userPlatformAdmin, role: "ADMIN", active: true },
-    { id: ids.platformAdminInactive, userId: ids.userInactivePlatformAdmin, role: "ADMIN", active: false },
+    { id: ids.platformAdminActive, userId: ids.userPlatformAdmin, role: "PLATFORM_ADMIN", active: true },
+    { id: ids.platformAdminInactive, userId: ids.userInactivePlatformAdmin, role: "PLATFORM_ADMIN", active: false },
   ]);
 
   // Seed Businesses
@@ -126,7 +126,7 @@ before(async () => {
   // Seed Memberships
   await db.insert(schema.businessMembers).values([
     { id: ids.memberOwnerA, businessId: ids.bizA, userId: ids.userOwnerA, role: "OWNER", active: true },
-    { id: ids.memberAdminA, businessId: ids.bizA, userId: ids.userAdminA, role: "ADMIN", active: true },
+    { id: ids.memberAdminA, businessId: ids.bizA, userId: ids.userAdminA, role: "MANAGER", active: true },
     { id: ids.memberStaffA, businessId: ids.bizA, userId: ids.userStaffA, role: "STAFF", active: true },
     { id: ids.memberStaff2A, businessId: ids.bizA, userId: ids.userStaff2A, role: "STAFF", active: true },
     { id: ids.memberInactiveA, businessId: ids.bizA, userId: ids.userInactiveMemberA, role: "STAFF", active: false },

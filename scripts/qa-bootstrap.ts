@@ -1,7 +1,5 @@
 if (typeof process.loadEnvFile === "function") {
   // Precedence order: Environment/CLI (highest) -> .env.qa.local -> .env.local -> .env (lowest)
-  // Since process.loadEnvFile does not overwrite already set variables in process.env,
-  // loading in this order ensures higher precedence files set variables first.
   for (const envFile of [".env.qa.local", ".env.local", ".env"]) {
     try {
       process.loadEnvFile(envFile);
@@ -36,47 +34,52 @@ async function main() {
   }
 
   const options = parseArgs(process.argv.slice(2));
+  const defaultPassword = "BarberCraft-QA-4380!";
 
-  const superAdminEmail = options["super-admin-email"] || process.env.QA_SUPER_ADMIN_EMAIL;
-  const superAdminPassword = options["super-admin-password"] || process.env.QA_SUPER_ADMIN_PASSWORD;
-  const ownerEmail = options["owner-email"] || process.env.QA_OWNER_EMAIL;
-  const ownerPassword = options["owner-password"] || process.env.QA_OWNER_PASSWORD;
-  const adminEmail = options["admin-email"] || process.env.QA_ADMIN_EMAIL;
-  const adminPassword = options["admin-password"] || process.env.QA_ADMIN_PASSWORD;
-  const staffEmail = options["staff-email"] || process.env.QA_STAFF_EMAIL;
-  const staffPassword = options["staff-password"] || process.env.QA_STAFF_PASSWORD;
+  const superAdminEmail = options["super-admin-email"] || process.env.QA_SUPER_ADMIN_EMAIL || "qa.superadmin@local.test";
+  const superAdminPassword = options["super-admin-password"] || process.env.QA_SUPER_ADMIN_PASSWORD || defaultPassword;
 
-  const missing: string[] = [];
-  if (!superAdminEmail) missing.push("QA_SUPER_ADMIN_EMAIL (or --super-admin-email)");
-  if (!superAdminPassword) missing.push("QA_SUPER_ADMIN_PASSWORD (or --super-admin-password)");
-  if (!ownerEmail) missing.push("QA_OWNER_EMAIL (or --owner-email)");
-  if (!ownerPassword) missing.push("QA_OWNER_PASSWORD (or --owner-password)");
-  if (!adminEmail) missing.push("QA_ADMIN_EMAIL (or --admin-email)");
-  if (!adminPassword) missing.push("QA_ADMIN_PASSWORD (or --admin-password)");
-  if (!staffEmail) missing.push("QA_STAFF_EMAIL (or --staff-email)");
-  if (!staffPassword) missing.push("QA_STAFF_PASSWORD (or --staff-password)");
+  const platformAdminEmail = options["platform-admin-email"] || process.env.QA_PLATFORM_ADMIN_EMAIL || "qa.platformadmin@local.test";
+  const platformAdminPassword = options["platform-admin-password"] || process.env.QA_PLATFORM_ADMIN_PASSWORD || defaultPassword;
 
-  if (missing.length > 0) {
-    console.error("Error: Missing required QA credentials.");
-    console.error("Please provide .env.qa.local or environment variables or CLI arguments:");
-    for (const m of missing) {
-      console.error(`  - ${m}`);
-    }
-    process.exit(1);
-  }
+  const ownerEmail = options["owner-email"] || process.env.QA_OWNER_EMAIL || "qa.owner@local.test";
+  const ownerPassword = options["owner-password"] || process.env.QA_OWNER_PASSWORD || defaultPassword;
+
+  const managerEmail = options["manager-email"] || process.env.QA_MANAGER_EMAIL || options["admin-email"] || process.env.QA_ADMIN_EMAIL || "qa.manager@local.test";
+  const managerPassword = options["manager-password"] || process.env.QA_MANAGER_PASSWORD || options["admin-password"] || process.env.QA_ADMIN_PASSWORD || defaultPassword;
+
+  const staffEmail = options["staff-email"] || process.env.QA_STAFF_EMAIL || "qa.staff@local.test";
+  const staffPassword = options["staff-password"] || process.env.QA_STAFF_PASSWORD || defaultPassword;
+
+  const staff2Email = options["staff2-email"] || process.env.QA_STAFF2_EMAIL || "qa.staff2@local.test";
+  const staff2Password = options["staff2-password"] || process.env.QA_STAFF2_PASSWORD || defaultPassword;
+
+  const owner2Email = options["owner2-email"] || process.env.QA_OWNER2_EMAIL || "qa.owner2@local.test";
+  const owner2Password = options["owner2-password"] || process.env.QA_OWNER2_PASSWORD || defaultPassword;
+
+  const staff3Email = options["staff3-email"] || process.env.QA_STAFF3_EMAIL || "qa.staff3@local.test";
+  const staff3Password = options["staff3-password"] || process.env.QA_STAFF3_PASSWORD || defaultPassword;
 
   const { bootstrapQA } = await import("../src/services/qa-bootstrap.service");
 
   try {
     const result = await bootstrapQA({
-      superAdminEmail: superAdminEmail!,
-      superAdminPassword: superAdminPassword!,
-      ownerEmail: ownerEmail!,
-      ownerPassword: ownerPassword!,
-      adminEmail: adminEmail!,
-      adminPassword: adminPassword!,
-      staffEmail: staffEmail!,
-      staffPassword: staffPassword!,
+      superAdminEmail,
+      superAdminPassword,
+      platformAdminEmail,
+      platformAdminPassword,
+      ownerEmail,
+      ownerPassword,
+      managerEmail,
+      managerPassword,
+      staffEmail,
+      staffPassword,
+      staff2Email,
+      staff2Password,
+      owner2Email,
+      owner2Password,
+      staff3Email,
+      staff3Password,
     });
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3001";
@@ -89,11 +92,18 @@ async function main() {
     console.log(`- Business Agendas: ${baseUrl}/dashboard`);
     console.log(`- Public Booking:   ${baseUrl}/book/${result.business.slug}`);
     console.log(`- Login:            ${baseUrl}/login\n`);
-    console.log("Configured QA Accounts:");
-    console.log(`- SUPER_ADMIN: ${result.users.superAdmin.email}`);
-    console.log(`- OWNER:       ${result.users.owner.email}`);
-    console.log(`- ADMIN:       ${result.users.admin.email}`);
-    console.log(`- STAFF:       ${result.users.staff.email}`);
+    console.log("Configured QA Accounts (Unambiguous Role Taxonomy):");
+    console.log("- Platform:");
+    console.log(`  - SUPER_ADMIN:    ${result.users.superAdmin.email}`);
+    console.log(`  - PLATFORM_ADMIN: ${result.users.platformAdmin.email}`);
+    console.log("- Primary Tenant (QA Berber):");
+    console.log(`  - OWNER:          ${result.users.owner.email}`);
+    console.log(`  - MANAGER:        ${result.users.manager.email}`);
+    console.log(`  - STAFF:          ${result.users.staff.email}`);
+    console.log(`  - STAFF 2:        ${result.users.staff2.email}`);
+    console.log("- Second Tenant (QA Berber 2):");
+    console.log(`  - OWNER:          ${result.users.owner2.email}`);
+    console.log(`  - STAFF:          ${result.users.staff3.email}`);
 
     process.exit(0);
   } catch (err) {

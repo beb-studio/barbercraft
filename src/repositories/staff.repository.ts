@@ -101,7 +101,7 @@ export interface BusinessMemberWithProfile {
   id: string;
   businessId: string;
   userId: string;
-  role: "OWNER" | "ADMIN" | "STAFF";
+  role: "OWNER" | "MANAGER" | "STAFF";
   active: boolean;
   createdAt: Date;
   userName: string;
@@ -229,7 +229,7 @@ export interface StaffProfileDetail {
   member: {
     id: string;
     userId: string;
-    role: "OWNER" | "ADMIN" | "STAFF";
+    role: "OWNER" | "MANAGER" | "STAFF";
     active: boolean;
     createdAt: Date;
     userName: string;

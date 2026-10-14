@@ -157,7 +157,7 @@ before(async () => {
 
   await db.insert(schema.businessMembers).values([
     { id: ids.memberOwnerA, businessId: ids.businessA, userId: ids.ownerA, role: "OWNER", active: true },
-    { id: ids.memberAdminA, businessId: ids.businessA, userId: ids.adminA, role: "ADMIN", active: true },
+    { id: ids.memberAdminA, businessId: ids.businessA, userId: ids.adminA, role: "MANAGER", active: true },
     { id: ids.memberStaff1A, businessId: ids.businessA, userId: ids.staff1A, role: "STAFF", active: true },
     { id: ids.memberStaff2A, businessId: ids.businessA, userId: ids.staff2A, role: "STAFF", active: true },
     { id: ids.memberStaffInactiveA, businessId: ids.businessA, userId: ids.staffInactiveA, role: "STAFF", active: true },
@@ -617,13 +617,13 @@ describe("Group 1: Authority & Identity", () => {
     );
   });
 
-  it("1.7: ADMIN accessing staff workspace follows allowed profile rules (cannot access OWNER)", async () => {
+  it("1.7: MANAGER accessing staff workspace follows allowed profile rules (cannot access OWNER)", async () => {
     mockSession(ids.adminA);
     // Can access staff profile
     const ws = await workspaceService.getStaffWorkspace({
       businessId: ids.businessA,
       userId: ids.adminA,
-      role: "ADMIN",
+      role: "MANAGER",
       targetStaffId: ids.profileStaff1A,
       referenceNow,
     });
@@ -635,7 +635,7 @@ describe("Group 1: Authority & Identity", () => {
         await workspaceService.getStaffWorkspace({
           businessId: ids.businessA,
           userId: ids.adminA,
-          role: "ADMIN",
+          role: "MANAGER",
           targetStaffId: ids.profileOwnerA,
           referenceNow,
         });

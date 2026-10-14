@@ -19,7 +19,7 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
   }
 
   // RBAC Boundary: Only OWNER and ADMIN may access staff detail management
-  if (currentMembership.role !== "OWNER" && currentMembership.role !== "ADMIN") {
+  if (currentMembership.role !== "OWNER" && currentMembership.role !== "MANAGER") {
     redirect("/dashboard");
   }
 

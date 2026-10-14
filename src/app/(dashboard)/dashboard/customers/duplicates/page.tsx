@@ -15,8 +15,8 @@ export default async function DuplicateCustomersPage() {
     redirect("/onboarding");
   }
 
-  // RBAC Boundary: OWNER & ADMIN only. STAFF is strictly forbidden.
-  if (currentMembership.role !== "OWNER" && currentMembership.role !== "ADMIN") {
+  // RBAC Boundary: OWNER & MANAGER only. STAFF is strictly forbidden.
+  if (currentMembership.role !== "OWNER" && currentMembership.role !== "MANAGER") {
     redirect("/dashboard");
   }
 

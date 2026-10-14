@@ -91,7 +91,7 @@ before(async () => {
 
   await db.insert(businessMembers).values([
     { id: uuid(10), businessId: MOCK.biz1, userId: MOCK.owner1, role: "OWNER", active: true },
-    { id: uuid(11), businessId: MOCK.biz1, userId: MOCK.admin1, role: "ADMIN", active: true },
+    { id: uuid(11), businessId: MOCK.biz1, userId: MOCK.admin1, role: "MANAGER", active: true },
     { id: uuid(12), businessId: MOCK.biz1, userId: MOCK.staff1, role: "STAFF", active: true },
     { id: uuid(13), businessId: MOCK.biz2, userId: MOCK.owner2, role: "OWNER", active: true },
   ]);

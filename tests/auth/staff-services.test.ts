@@ -158,7 +158,7 @@ before(async () => {
   // 4. Insert memberships
   await db.insert(businessMembers).values([
     { id: memOwnerA, businessId: bizA, userId: userOwnerA, role: "OWNER", active: true },
-    { id: memAdminA, businessId: bizA, userId: userAdminA, role: "ADMIN", active: true },
+    { id: memAdminA, businessId: bizA, userId: userAdminA, role: "MANAGER", active: true },
     { id: memStaffA, businessId: bizA, userId: userStaffA, role: "STAFF", active: true },
     { id: memStaffA2, businessId: bizA, userId: userStaffA2, role: "STAFF", active: true },
     { id: memInactiveMember, businessId: bizA, userId: userInactiveMember, role: "STAFF", active: false },
@@ -333,7 +333,7 @@ describe("Staff Service Assignment & Booking Readiness (TASK 005C.1) Tests", () 
       mockSession({ id: userStaffA, email: "staff@biz-a.com" });
       const res = await staffActions.getStaffDetailAction(staffMemberA);
       assert.strictEqual(res.success, false);
-      assert.match(res.error, /ADMIN or OWNER role required|yetkiniz/i);
+      assert.match(res.error, /MANAGER or OWNER role required|yetkiniz/i);
     });
 
     it("1.5 rejects STAFF role user calling assignStaffServicesAction", async () => {
@@ -343,7 +343,7 @@ describe("Staff Service Assignment & Booking Readiness (TASK 005C.1) Tests", () 
         serviceIds: [svcA1],
       });
       assert.strictEqual(res.success, false);
-      assert.match(res.error, /ADMIN or OWNER role required|yetkiniz/i);
+      assert.match(res.error, /MANAGER or OWNER role required|yetkiniz/i);
     });
 
     it("1.6 rejects STAFF role user calling toggleStaffPublicBookingAction", async () => {
@@ -353,10 +353,10 @@ describe("Staff Service Assignment & Booking Readiness (TASK 005C.1) Tests", () 
         publicBookingEnabled: false,
       });
       assert.strictEqual(res.success, false);
-      assert.match(res.error, /ADMIN or OWNER role required|yetkiniz/i);
+      assert.match(res.error, /MANAGER or OWNER role required|yetkiniz/i);
     });
 
-    it("1.7 ADMIN role user CAN view and manage STAFF profile", async () => {
+    it("1.7 MANAGER role user CAN view and manage STAFF profile", async () => {
       mockSession({ id: userAdminA, email: "admin@biz-a.com" });
       const res = await staffActions.getStaffDetailAction(staffMemberA);
       assert.strictEqual(res.success, true);
@@ -364,7 +364,7 @@ describe("Staff Service Assignment & Booking Readiness (TASK 005C.1) Tests", () 
       assert.strictEqual(res.staff.firstName, "Staff");
     });
 
-    it("1.8 ADMIN role user is strictly FORBIDDEN from viewing OWNER staff profile", async () => {
+    it("1.8 MANAGER role user is strictly FORBIDDEN from viewing OWNER staff profile", async () => {
       mockSession({ id: userAdminA, email: "admin@biz-a.com" });
       const res = await staffActions.getStaffDetailAction(staffOwnerA);
       assert.strictEqual(res.success, false);
