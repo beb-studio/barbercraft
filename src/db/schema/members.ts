@@ -4,7 +4,7 @@ import { users } from "./users";
 
 export const businessMemberRoleEnum = pgEnum("business_member_role", [
   "OWNER",
-  "ADMIN",
+  "MANAGER",
   "STAFF",
 ]);
 

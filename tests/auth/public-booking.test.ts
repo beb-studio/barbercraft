@@ -102,7 +102,7 @@ before(async () => {
     ('${memberStaff3}', '${bizCompleted}', '${userStaff3}', 'STAFF', true),
     ('${memberStaff4}', '${bizCompleted}', '${userStaff4}', 'STAFF', true),
     ('${memberStaff5}', '${bizCompleted}', '${userStaff5}', 'STAFF', false),
-    ('${memberAdminOnly}', '${bizCompleted}', '${userAdminOnly}', 'ADMIN', true),
+    ('${memberAdminOnly}', '${bizCompleted}', '${userAdminOnly}', 'MANAGER', true),
     ('${memberOwnerOther}', '${bizOtherTenant}', '${userOwnerOther}', 'OWNER', true);
   `);
 

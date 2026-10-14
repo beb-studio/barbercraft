@@ -101,7 +101,7 @@ export interface BusinessMemberWithProfile {
   id: string;
   businessId: string;
   userId: string;
-  role: "OWNER" | "ADMIN" | "STAFF";
+  role: "OWNER" | "MANAGER" | "STAFF";
   active: boolean;
   createdAt: Date;
   userName: string;
@@ -174,7 +174,7 @@ export async function toggleStaffMemberActive(
   active: boolean
 ) {
   return await db.transaction(async (tx) => {
-    // Only update if role is STAFF (enforces DB safety against modifying OWNER/ADMIN)
+    // Only update if role is STAFF (enforces DB safety against modifying OWNER/MANAGER)
     const [updatedMember] = await tx
       .update(businessMembers)
       .set({
@@ -229,7 +229,7 @@ export interface StaffProfileDetail {
   member: {
     id: string;
     userId: string;
-    role: "OWNER" | "ADMIN" | "STAFF";
+    role: "OWNER" | "MANAGER" | "STAFF";
     active: boolean;
     createdAt: Date;
     userName: string;

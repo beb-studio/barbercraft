@@ -1,6 +1,6 @@
 "use server";
 
-import { requireSession, requireAdminOrOwner } from "@/lib/auth/guards";
+import { requireSession, requireManagerOrOwner } from "@/lib/auth/guards";
 import { getMemberships } from "@/lib/auth/session";
 import { db } from "@/db";
 import { businesses, businessWorkingHours, services } from "@/db/schema";
@@ -123,7 +123,7 @@ export async function createFirstServiceAction(payload: CreateFirstServicePayloa
 
 /**
  * Resolves the authenticated business ID for service management.
- * Verifies that the user has an active membership and role OWNER or ADMIN.
+ * Verifies that the user has an active membership and role OWNER or MANAGER.
  */
 async function resolveAuthorizedBusiness(businessIdParam?: string): Promise<string> {
   await requireSession();
@@ -142,8 +142,8 @@ async function resolveAuthorizedBusiness(businessIdParam?: string): Promise<stri
     targetBusinessId = matched.business_id;
   }
 
-  // Enforces that the caller is an OWNER or ADMIN for the business
-  await requireAdminOrOwner(targetBusinessId);
+  // Enforces that the caller is an OWNER or MANAGER for the business
+  await requireManagerOrOwner(targetBusinessId);
   return targetBusinessId;
 }
 

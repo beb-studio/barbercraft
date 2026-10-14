@@ -14,7 +14,7 @@ export default async function BookingPolicySettingsPage() {
   const membership = memberships[0];
 
   if (!membership) redirect("/login");
-  if (membership.role !== "OWNER" && membership.role !== "ADMIN") {
+  if (membership.role !== "OWNER" && membership.role !== "MANAGER") {
     redirect("/dashboard");
   }
 

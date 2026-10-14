@@ -78,17 +78,17 @@ before(async () => {
     },
     {
       userId: userPlatformAdmin,
-      role: "ADMIN",
+      role: "PLATFORM_ADMIN",
       active: true,
     },
     {
       userId: userPlatformAdminAndStaff,
-      role: "ADMIN",
+      role: "PLATFORM_ADMIN",
       active: true,
     },
     {
       userId: userInactiveAdmin,
-      role: "ADMIN",
+      role: "PLATFORM_ADMIN",
       active: false,
     },
   ]);
@@ -106,7 +106,7 @@ before(async () => {
 
   await db.insert(schema.businessMembers).values([
     { id: testMemberOwner, businessId: testBiz, userId: userOwner, role: "OWNER", active: true },
-    { id: testMemberAdmin, businessId: testBiz, userId: userBusinessAdmin, role: "ADMIN", active: true },
+    { id: testMemberAdmin, businessId: testBiz, userId: userBusinessAdmin, role: "MANAGER", active: true },
     { id: testMemberStaff1, businessId: testBiz, userId: userStaffOnly, role: "STAFF", active: true },
     { id: testMemberStaff2, businessId: testBiz, userId: userPlatformAdminAndStaff, role: "STAFF", active: true },
   ]);
@@ -192,7 +192,7 @@ describe("TASK 010A: Platform Administration Foundation Tests", () => {
     try {
       await db.insert(schema.platformAdmins).values({
         userId: userSuperAdmin,
-        role: "ADMIN",
+        role: "PLATFORM_ADMIN",
         active: true,
       });
     } catch (err: any) {
@@ -203,7 +203,7 @@ describe("TASK 010A: Platform Administration Foundation Tests", () => {
     assert.equal(threw, true);
   });
 
-  it("3. valid SUPER_ADMIN and ADMIN rows are stored correctly", async () => {
+  it("3. valid SUPER_ADMIN and PLATFORM_ADMIN rows are stored correctly", async () => {
     const [superRow] = await db
       .select()
       .from(schema.platformAdmins)
@@ -215,7 +215,7 @@ describe("TASK 010A: Platform Administration Foundation Tests", () => {
       .select()
       .from(schema.platformAdmins)
       .where(eq(schema.platformAdmins.userId, userPlatformAdmin));
-    assert.equal(adminRow.role, "ADMIN");
+    assert.equal(adminRow.role, "PLATFORM_ADMIN");
     assert.equal(adminRow.active, true);
   });
 
@@ -261,11 +261,11 @@ describe("TASK 010A: Platform Administration Foundation Tests", () => {
     }, guardsModule.ForbiddenError);
   });
 
-  it("10. active platform ADMIN is allowed and returns trusted typed context", async () => {
+  it("10. active platform PLATFORM_ADMIN is allowed and returns trusted typed context", async () => {
     mockSession(userPlatformAdmin);
     const ctx = await guardsModule.requirePlatformAdmin();
     assert.equal(ctx.userId, userPlatformAdmin);
-    assert.equal(ctx.platformRole, "ADMIN");
+    assert.equal(ctx.platformRole, "PLATFORM_ADMIN");
     assert.ok(ctx.platformAdminId);
   });
 
@@ -286,11 +286,11 @@ describe("TASK 010A: Platform Administration Foundation Tests", () => {
     assert.equal(ctx.userId, userSuperAdmin);
   });
 
-  it("13. user with platform ADMIN + business STAFF is platform-authorized solely from platform role", async () => {
+  it("13. user with platform PLATFORM_ADMIN + business STAFF is platform-authorized solely from platform role", async () => {
     mockSession(userPlatformAdminAndStaff);
     const ctx = await guardsModule.requirePlatformAdmin();
     assert.equal(ctx.userId, userPlatformAdminAndStaff);
-    assert.equal(ctx.platformRole, "ADMIN");
+    assert.equal(ctx.platformRole, "PLATFORM_ADMIN");
 
     const [m] = await sessionModule.getMemberships();
     assert.equal(m.role, "STAFF");
@@ -345,7 +345,7 @@ describe("TASK 010A: Platform Administration Foundation Tests", () => {
     await assert.rejects(async () => {
       await platformServiceModule.PlatformAdminService.grantPlatformAdmin({
         email: "nonexistent@user.com",
-        role: "ADMIN",
+        role: "PLATFORM_ADMIN",
       });
     }, /User not found/);
   });
@@ -362,12 +362,12 @@ describe("TASK 010A: Platform Administration Foundation Tests", () => {
   it("21. bootstrap grants platform admin to valid user idempotently and logs audit record", async () => {
     const result = await platformServiceModule.PlatformAdminService.grantPlatformAdmin({
       email: "normal@biz.test",
-      role: "ADMIN",
+      role: "PLATFORM_ADMIN",
       actorUserId: userSuperAdmin,
     });
 
     assert.equal(result.success, true);
-    assert.equal(result.role, "ADMIN");
+    assert.equal(result.role, "PLATFORM_ADMIN");
     assert.equal(result.active, true);
 
     mockSession(userNormalNoBiz);
@@ -409,11 +409,11 @@ describe("TASK 010A: Platform Administration Foundation Tests", () => {
     assert.equal(res.membership.role, "OWNER");
   });
 
-  it("24. business ADMIN retains normal business admin guards and access", async () => {
+  it("24. business MANAGER retains normal business manager guards and access", async () => {
     mockSession(userBusinessAdmin);
-    const res = await guardsModule.requireAdminOrOwner(testBiz);
+    const res = await guardsModule.requireManagerOrOwner(testBiz);
     assert.equal(res.user.id, userBusinessAdmin);
-    assert.equal(res.membership.role, "ADMIN");
+    assert.equal(res.membership.role, "MANAGER");
   });
 
   it("25. business OWNER is rejected by requirePlatformAdmin", async () => {
@@ -423,7 +423,7 @@ describe("TASK 010A: Platform Administration Foundation Tests", () => {
     }, guardsModule.ForbiddenError);
   });
 
-  it("26. business ADMIN is rejected by requirePlatformAdmin", async () => {
+  it("26. business MANAGER is rejected by requirePlatformAdmin", async () => {
     mockSession(userBusinessAdmin);
     await assert.rejects(async () => {
       await guardsModule.requirePlatformAdmin();
@@ -440,7 +440,7 @@ describe("TASK 010A: Platform Administration Foundation Tests", () => {
   it("28. platform presentation helpers return exact Turkish labels", async () => {
     const { getPlatformRoleLabel } = await import("../../src/lib/presentation");
     assert.equal(getPlatformRoleLabel("SUPER_ADMIN"), "Süper Yönetici");
-    assert.equal(getPlatformRoleLabel("ADMIN"), "Platform Yöneticisi");
+    assert.equal(getPlatformRoleLabel("PLATFORM_ADMIN"), "Platform Yöneticisi");
   });
 
   it("29. platform pages contain only Turkish visible copy", () => {

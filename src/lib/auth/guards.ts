@@ -51,13 +51,16 @@ export async function requireOwner(businessId: string) {
   return { user, membership };
 }
 
-export async function requireAdminOrOwner(businessId: string) {
+export async function requireManagerOrOwner(businessId: string) {
   const { user, membership } = await requireBusinessMembership(businessId);
-  if (membership.role !== "OWNER" && membership.role !== "ADMIN") {
-    throw new ForbiddenError("ADMIN or OWNER role required");
+  if (membership.role !== "OWNER" && membership.role !== "MANAGER") {
+    throw new ForbiddenError("MANAGER or OWNER role required");
   }
   return { user, membership };
 }
+
+/** Backward-compatible alias for requireManagerOrOwner. */
+export const requireAdminOrOwner = requireManagerOrOwner;
 
 export interface PlatformAdminContext {
   userId: string;

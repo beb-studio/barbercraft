@@ -83,7 +83,7 @@ The application is engineered strictly **mobile-first**.
 
 ## 6. Booking Policy Settings
 
-1. OWNER/ADMIN policy controls live at `/dashboard/settings/booking`; STAFF receives neither the navigation entry nor the route content.
+1. OWNER/MANAGER policy controls live at `/dashboard/settings/booking`; STAFF receives neither the navigation entry nor the route content.
 2. Every duration presents a labeled amount and keyboard-usable unit selector. Existing values must round-trip exactly; the interface never silently rounds minutes.
 3. Unlimited maximum advance is a labeled checkbox state. Finite mode reveals an associated whole-day input, and `NULL` remains the only persisted unlimited representation.
 4. The committed policy summary is distinct from editable controls. A successful save refreshes it from server truth; a stale save replaces the form with current values and explains what happened.
@@ -95,7 +95,7 @@ The application is engineered strictly **mobile-first**.
 
 ## 7. Notification Settings
 
-1. `/dashboard/settings/notifications` is available only to tenant OWNER/ADMIN users and is not advertised to STAFF in dashboard navigation.
+1. `/dashboard/settings/notifications` is available only to tenant OWNER/MANAGER users and is not advertised to STAFF in dashboard navigation.
 2. The customer-notifications switch conveys its checked and disabled relationship programmatically. Turning it off preserves but clearly deactivates event and reminder choices.
 3. A reminder row pairs an associated whole-number amount with an accessible minute/hour/day selector. Values must round-trip without rounding; duplicate canonical offsets and the three-rule limit receive inline Turkish validation.
 4. Add/remove, save, pending, success, and stale-state controls are keyboard accessible, have visible focus, meet the 44px touch target rule, and communicate results through live feedback rather than color alone.
@@ -105,7 +105,7 @@ The application is engineered strictly **mobile-first**.
 
 ## 8. Business Analytics Dashboard UX Rules
 
-1. `/dashboard` provides an integrated operational command center for `OWNER` and `ADMIN`. `STAFF` users receive `StaffDashboardView` with their personal operational agenda, strictly omitting business-wide analytics and financial metrics.
+1. `/dashboard` provides an integrated operational command center for `OWNER` and `MANAGER`. `STAFF` users receive `StaffDashboardView` with their personal operational agenda, strictly omitting business-wide analytics and financial metrics.
 2. The range selector is a segmented control with accessible `role="tablist"` and `role="tab"` attributes. Preset tabs satisfy the minimum 44px touch target (`min-h-[44px]`).
 3. Primary action buttons ("Yeni Randevu", "Ajandaya Git") satisfy the 44px minimum touch target on mobile viewports.
 4. "Tamamlanan Hizmet Tutarı" is presented with an explanatory subtitle: *"Tamamlanan randevuların kayıtlı hizmet tutarıdır; tahsilat verisi değildir."* Prohibited labels ("Ciro", "Gelir", "Tahsilat", "Net Gelir", "Revenue", "Kâr") are strictly barred.

@@ -28,8 +28,8 @@ export class PlatformAdminService {
       throw new Error("Invalid email address format.");
     }
 
-    if (role !== "SUPER_ADMIN" && role !== "ADMIN") {
-      throw new Error("Invalid platform admin role. Must be 'SUPER_ADMIN' or 'ADMIN'.");
+    if (role !== "SUPER_ADMIN" && role !== "PLATFORM_ADMIN") {
+      throw new Error("Invalid platform admin role. Must be 'SUPER_ADMIN' or 'PLATFORM_ADMIN'.");
     }
 
     const [user] = await db

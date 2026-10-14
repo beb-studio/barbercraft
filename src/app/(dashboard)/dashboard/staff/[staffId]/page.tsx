@@ -18,8 +18,8 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
     redirect("/onboarding");
   }
 
-  // RBAC Boundary: Only OWNER and ADMIN may access staff detail management
-  if (currentMembership.role !== "OWNER" && currentMembership.role !== "ADMIN") {
+  // RBAC Boundary: Only OWNER and MANAGER may access staff detail management
+  if (currentMembership.role !== "OWNER" && currentMembership.role !== "MANAGER") {
     redirect("/dashboard");
   }
 
@@ -38,7 +38,7 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
       currentMembership.role
     );
   } catch {
-    // If not found or forbidden (e.g. ADMIN trying to access OWNER's staff profile)
+    // If not found or forbidden (e.g. MANAGER trying to access OWNER's staff profile)
     redirect("/dashboard/staff");
   }
 

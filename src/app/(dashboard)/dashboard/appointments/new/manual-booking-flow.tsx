@@ -346,7 +346,7 @@ export function ManualBookingFlow({
             </CardContent>
           </Card>
 
-          {/* 2. Personel Seçimi (For OWNER & ADMIN) */}
+          {/* 2. Personel Seçimi (For OWNER & MANAGER) */}
           {role !== "STAFF" && (
             <Card className="border-border shadow-xs">
               <CardHeader className="p-5 pb-3">

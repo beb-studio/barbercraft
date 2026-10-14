@@ -48,7 +48,7 @@ export default async function DashboardLayout({
     redirect("/onboarding");
   }
 
-  const currentRole = (currentMembership.role as "OWNER" | "ADMIN" | "STAFF") || "STAFF";
+  const currentRole = (currentMembership.role as "OWNER" | "MANAGER" | "STAFF") || "STAFF";
 
   const [biz] = await db
     .select({

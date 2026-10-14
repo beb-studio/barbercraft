@@ -141,8 +141,8 @@ describe("Role Resolution & Guards", () => {
     // User2 is STAFF of A
     await db.execute(`INSERT INTO business_members (business_id, user_id, role) VALUES ('${businessA}', '${user2}', 'STAFF')`);
 
-    // User3 is ADMIN of A
-    await db.execute(`INSERT INTO business_members (business_id, user_id, role) VALUES ('${businessA}', '${user3}', 'ADMIN')`);
+    // User3 is MANAGER of A
+    await db.execute(`INSERT INTO business_members (business_id, user_id, role) VALUES ('${businessA}', '${user3}', 'MANAGER')`);
   });
 
   it("resolves User1 as OWNER in Business A", async () => {
@@ -173,31 +173,31 @@ describe("Role Resolution & Guards", () => {
     }
   });
 
-  it("User2 (STAFF) cannot pass ADMIN or OWNER guard in Business A", async () => {
+  it("User2 (STAFF) cannot pass MANAGER or OWNER guard in Business A", async () => {
     const originalGetCurrentUser = sessionModule.sessionDependencies.getCurrentUser;
     
     sessionModule.sessionDependencies.getCurrentUser = async () => ({ id: user2, email: "staff@test.local" });
     
     try {
-      await assert.rejects(guardsModule.requireAdminOrOwner(businessA), { name: "ForbiddenError" });
+      await assert.rejects(guardsModule.requireManagerOrOwner(businessA), { name: "ForbiddenError" });
       await assert.rejects(guardsModule.requireOwner(businessA), { name: "ForbiddenError" });
     } finally {
       sessionModule.sessionDependencies.getCurrentUser = originalGetCurrentUser;
     }
   });
 
-  it("User3 (ADMIN) cannot pass OWNER guard but passes ADMIN guard in Business A", async () => {
+  it("User3 (MANAGER) cannot pass OWNER guard but passes MANAGER guard in Business A", async () => {
     const originalGetCurrentUser = sessionModule.sessionDependencies.getCurrentUser;
     
     sessionModule.sessionDependencies.getCurrentUser = async () => ({ id: user3, email: "admin@test.local" });
     
     try {
-      // ADMIN cannot pass requireOwner
+      // MANAGER cannot pass requireOwner
       await assert.rejects(guardsModule.requireOwner(businessA), { name: "ForbiddenError" });
       
-      // ADMIN can pass requireAdminOrOwner
-      const result = await guardsModule.requireAdminOrOwner(businessA);
-      assert.equal(result.membership.role, "ADMIN");
+      // MANAGER can pass requireManagerOrOwner
+      const result = await guardsModule.requireManagerOrOwner(businessA);
+      assert.equal(result.membership.role, "MANAGER");
     } finally {
       sessionModule.sessionDependencies.getCurrentUser = originalGetCurrentUser;
     }

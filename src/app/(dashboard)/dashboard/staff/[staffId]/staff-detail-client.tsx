@@ -78,7 +78,7 @@ interface StaffDetailClientProps {
   businessWorkingHours: BusinessWorkingHourItem[];
   initialTimeBlocks: FormattedTimeBlock[];
   businessTimezone: string;
-  callerRole: "OWNER" | "ADMIN";
+  callerRole: "OWNER" | "MANAGER";
 }
 
 export function StaffDetailClient({
@@ -546,8 +546,8 @@ export function StaffDetailClient({
             <Badge variant="outline" className="text-xs">
               {staff.member.role === "OWNER"
                 ? "İşletme Sahibi"
-                : staff.member.role === "ADMIN"
-                ? "Yönetici"
+                : staff.member.role === "MANAGER"
+                ? "İşletme Yöneticisi"
                 : "Personel"}
             </Badge>
             <Badge

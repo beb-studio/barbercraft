@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdminOrOwner, requireSession } from "@/lib/auth/guards";
+import { requireManagerOrOwner, requireSession } from "@/lib/auth/guards";
 import { getMemberships } from "@/lib/auth/session";
 import {
   bookingPolicyToFormValues,
@@ -121,7 +121,7 @@ export async function updateBusinessBookingPolicyAction(
         error: "Bu ayarları değiştirme yetkiniz yok.",
       };
     }
-    await requireAdminOrOwner(membership.business_id);
+    await requireManagerOrOwner(membership.business_id);
 
     const parsed = parsePresentationPayload(payload);
     if (!parsed?.valid || typeof payload.expectedVersion !== "string") {

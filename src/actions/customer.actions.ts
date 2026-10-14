@@ -1,6 +1,6 @@
 "use server";
 
-import { requireSession, requireAdminOrOwner } from "@/lib/auth/guards";
+import { requireSession, requireManagerOrOwner } from "@/lib/auth/guards";
 import { getMemberships } from "@/lib/auth/session";
 import { CustomerRepository } from "@/repositories/customer.repository";
 import { CustomerMergeService } from "@/services/customer-merge.service";
@@ -42,7 +42,7 @@ export async function getCustomerDirectoryAction(
     }
 
     // Role check
-    await requireAdminOrOwner(targetBusinessId);
+    await requireManagerOrOwner(targetBusinessId);
 
     const result = await CustomerRepository.getCustomerDirectory({
       businessId: targetBusinessId,
@@ -80,7 +80,7 @@ export async function getCustomerDetailAction(customerId: string, businessIdPara
     }
 
     // Role check
-    await requireAdminOrOwner(targetBusinessId);
+    await requireManagerOrOwner(targetBusinessId);
 
     const detail = await CustomerRepository.getCustomerDetail(targetBusinessId, customerId);
     if (!detail) {
@@ -141,7 +141,7 @@ export async function updateCustomerProfileAction(
       targetBusinessId = matched.business_id;
     }
 
-    await requireAdminOrOwner(targetBusinessId);
+    await requireManagerOrOwner(targetBusinessId);
 
     const normalizedPhone = normalizePhone(data.phone);
 
@@ -199,7 +199,7 @@ export async function getCustomerNotesAction(customerId: string, businessIdParam
       targetBusinessId = matched.business_id;
     }
 
-    await requireAdminOrOwner(targetBusinessId);
+    await requireManagerOrOwner(targetBusinessId);
 
     const notes = await CustomerRepository.getNotes(targetBusinessId, customerId);
     return { success: true as const, notes };
@@ -229,7 +229,7 @@ export async function addCustomerNoteAction(customerId: string, content: string,
       targetMember = matched;
     }
 
-    await requireAdminOrOwner(targetBusinessId);
+    await requireManagerOrOwner(targetBusinessId);
 
     const trimmedContent = content.trim();
     if (!trimmedContent) {
@@ -270,7 +270,7 @@ export async function deleteCustomerNoteAction(customerId: string, noteId: strin
       targetBusinessId = matched.business_id;
     }
 
-    await requireAdminOrOwner(targetBusinessId);
+    await requireManagerOrOwner(targetBusinessId);
 
     const deleted = await CustomerRepository.deleteNote(targetBusinessId, customerId, noteId);
     if (!deleted) {
@@ -303,7 +303,7 @@ export async function updateCustomerNoteAction(customerId: string, noteId: strin
       targetBusinessId = matched.business_id;
     }
 
-    await requireAdminOrOwner(targetBusinessId);
+    await requireManagerOrOwner(targetBusinessId);
 
     const trimmedContent = content.trim();
     if (!trimmedContent) {
@@ -350,9 +350,9 @@ export async function searchCustomersForBookingAction(
       targetBusinessId = matched.business_id;
     }
 
-    // Purpose-limited lookup: OWNER, ADMIN, and STAFF of this business are allowed
+    // Purpose-limited lookup: OWNER, MANAGER, and STAFF of this business are allowed
     const membership = memberships.find((m) => m.business_id === targetBusinessId);
-    if (!membership || !["OWNER", "ADMIN", "STAFF"].includes(membership.role)) {
+    if (!membership || !["OWNER", "MANAGER", "STAFF"].includes(membership.role)) {
       return { success: false as const, error: "Yetkisiz işlem." };
     }
 
@@ -390,8 +390,8 @@ export async function getDuplicateCandidatesAction(businessIdParam?: string) {
       targetBusinessId = matched.business_id;
     }
 
-    // Strictly OWNER and ADMIN only
-    await requireAdminOrOwner(targetBusinessId);
+    // Strictly OWNER and MANAGER only
+    await requireManagerOrOwner(targetBusinessId);
 
     const candidates = await CustomerRepository.getDuplicateCandidates(targetBusinessId);
 

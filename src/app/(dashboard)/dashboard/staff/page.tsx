@@ -14,7 +14,7 @@ export default async function StaffManagementPage() {
   }
 
   // RBAC Boundary: STAFF is strictly forbidden from staff management
-  if (currentMembership.role !== "OWNER" && currentMembership.role !== "ADMIN") {
+  if (currentMembership.role !== "OWNER" && currentMembership.role !== "MANAGER") {
     redirect("/dashboard");
   }
 

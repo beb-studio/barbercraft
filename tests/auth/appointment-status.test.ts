@@ -63,7 +63,7 @@ describe("Appointment Status Mutations (TASK 008B)", { concurrency: false }, () 
     await db.execute(`
       INSERT INTO business_members (id, business_id, user_id, role) VALUES
         ('${uuid(11)}', '${bizMain}', '${ownerUserId}', 'OWNER'),
-        ('${uuid(12)}', '${bizMain}', '${adminUserId}', 'ADMIN'),
+        ('${uuid(12)}', '${bizMain}', '${adminUserId}', 'MANAGER'),
         ('${uuid(13)}', '${bizMain}', '${staff1UserId}', 'STAFF'),
         ('${uuid(14)}', '${bizMain}', '${staff2UserId}', 'STAFF');
     `);
@@ -138,8 +138,8 @@ describe("Appointment Status Mutations (TASK 008B)", { concurrency: false }, () 
       assert.equal(res.rows[0].status, "CANCELLED");
     });
 
-    it("ADMIN can update any appointment", async () => {
-      await AppointmentService.updateAppointmentStatus(bizMain, pastApptStaff2Id, "CANCELLED", "ADMIN", adminUserId);
+    it("MANAGER can update any appointment", async () => {
+      await AppointmentService.updateAppointmentStatus(bizMain, pastApptStaff2Id, "CANCELLED", "MANAGER", adminUserId);
       const res = await db.execute(`SELECT status FROM appointments WHERE id = '${pastApptStaff2Id}'`);
       assert.equal(res.rows[0].status, "CANCELLED");
     });

@@ -18,7 +18,7 @@ export type GetBusinessDashboardAnalyticsActionResult =
 
 /**
  * Server Action for fetching business dashboard analytics.
- * Strictly restricted to OWNER and ADMIN of the active business membership.
+ * Strictly restricted to OWNER and MANAGER of the active business membership.
  */
 export async function getBusinessDashboardAnalyticsAction(
   presetInput?: string
@@ -35,7 +35,7 @@ export async function getBusinessDashboardAnalyticsAction(
       };
     }
 
-    if (membership.role !== "OWNER" && membership.role !== "ADMIN") {
+    if (membership.role !== "OWNER" && membership.role !== "MANAGER") {
       return {
         success: false,
         error: "Bu işlem için yetkiniz bulunmuyor. Yalnızca işletme sahibi ve yöneticiler erişebilir.",

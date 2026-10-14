@@ -75,7 +75,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   }
 
   // ============================================================
-  // ROLE BRANCH 2: OWNER & ADMIN BUSINESS ANALYTICS COMMAND CENTER
+  // ROLE BRANCH 2: OWNER & MANAGER BUSINESS ANALYTICS COMMAND CENTER
   // ============================================================
   const resolvedParams = await searchParams;
   const rangeInput = resolvedParams.range;

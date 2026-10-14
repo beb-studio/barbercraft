@@ -136,7 +136,7 @@ export class StaffProvisioningService {
         let memberId: string;
 
         if (existingMember) {
-          if (existingMember.role === "OWNER" || existingMember.role === "ADMIN") {
+          if (existingMember.role === "OWNER" || existingMember.role === "MANAGER") {
             throw new Error("MEMBER_ROLE_CONFLICT: User already exists with a higher role.");
           }
           if (existingMember.active) {

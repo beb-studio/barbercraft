@@ -25,7 +25,7 @@ export default async function CustomerDetailPage({
   }
 
   // RBAC Boundary: STAFF is strictly forbidden
-  if (currentMembership.role !== "OWNER" && currentMembership.role !== "ADMIN") {
+  if (currentMembership.role !== "OWNER" && currentMembership.role !== "MANAGER") {
     redirect("/dashboard");
   }
 

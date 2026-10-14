@@ -11,15 +11,19 @@ BarberCraft operates as a multi-tenant appointment scheduling platform serving b
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
-│                        PLATFORM SUPER ADMIN / ADMIN                    │
+│                   PLATFORM SUPER_ADMIN / PLATFORM_ADMIN                │
 │            (Global tenant supervision, provisioning, system health)    │
+│            (Turkish UI: "Süper Yönetici" / "Platform Yöneticisi")      │
 └────────────────────────────────────────────────────────────────────────┘
                                     │ (Zero cross-session impersonation)
 ┌────────────────────────────────────────────────────────────────────────┐
 │                        TENANT INTERNAL WORKSPACE                       │
-│      OWNER: Full business config, staff & admin management, analytics  │
-│      ADMIN: Day-to-day operations, booking management, schedule view   │
-│      STAFF: Personal daily agenda, appointment status (No financial)   │
+│  OWNER: Full business config, staff & manager management, analytics   │
+│         (Turkish UI: "İşletme Sahibi")                                │
+│  MANAGER: Day-to-day operations, booking management, schedule view    │
+│           (Turkish UI: "İşletme Yöneticisi")                          │
+│  STAFF: Personal daily agenda, appointment status (No financial)      │
+│         (Turkish UI: "Personel")                                      │
 └────────────────────────────────────────────────────────────────────────┘
                                     │ (Strict multi-tenant isolation)
 ┌────────────────────────────────────────────────────────────────────────┐
@@ -32,11 +36,13 @@ BarberCraft operates as a multi-tenant appointment scheduling platform serving b
 │                         PUBLIC ANONYMOUS                               │
 │     Public booking portal (/book/[slug]). No accounts, no password.    │
 │     Public self-registration disabled (/register denied).              │
+│     CUSTOMER: Accountless public actor (Turkish UI: "Müşteri")         │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 1.1 Public Anonymous
+### 1.1 Public Anonymous & Customer Model
 - **Scope**: Visiting public booking pages (`/book/[slug]`), fetching eligible staff and active services, viewing public booking slots, creating an appointment.
+- **CUSTOMER Actor**: Not an authenticated user role. Customers remain completely accountless and interact through public booking and cryptographically secure capability links.
 - **Threats**: Slot hoarding, scraping staff schedules, brute-forcing booking slots, denial of service, SQL injection.
 - **Controls**: Strict rate limits (15 bookings per 10 minutes per IP, 120 availability checks per minute), parameterized queries (Drizzle ORM), phone normalization, input size bounds.
 
@@ -50,8 +56,8 @@ BarberCraft operates as a multi-tenant appointment scheduling platform serving b
   - **Zero Privacy Leakage**: Resolving a token never exposes customer notes, internal barber notes, other customers, or financial lineage.
 
 ### 1.3 Tenant Roles & RBAC Boundaries
-- **OWNER**: Full administrative control over the tenant, including business settings, staff members, administrative roles, working hours, services, and business analytics.
-- **ADMIN**: Operational management within the tenant, appointment scheduling, and customer records. Cannot modify business ownership or manage owner accounts.
+- **OWNER**: Full administrative control over the tenant, including business settings, staff members, management roles, working hours, services, and business analytics.
+- **MANAGER**: Operational management within the tenant, appointment scheduling, and customer records. Cannot modify business ownership or manage owner accounts.
 - **STAFF**: Restricted strictly to their own operational agenda and personal time blocks.
   - **Zero Financial Exposure**: Workspace payload contains no service pricing, business revenue, or financial analytics.
   - **Privacy Boundary**: Cannot view CRM customer notes, internal administrative notes, or merged customer lineage.
@@ -61,7 +67,7 @@ BarberCraft operates as a multi-tenant appointment scheduling platform serving b
   - Forged business IDs in payloads or URL segments are rejected at authorization guards (`requireBusinessMembership`, `requireBusinessPermission`).
 
 ### 1.4 Platform Supervision
-- **SUPER_ADMIN & ADMIN**: Oversee platform operational health, business active/suspended status, and initial business provisioning.
+- **SUPER_ADMIN & PLATFORM_ADMIN**: Oversee platform operational health, business active/suspended status, and initial business provisioning.
 - **Impersonation Boundary**: Platform administrators have NO session impersonation bridge into tenant internal sessions. Platform operators interact exclusively through `/platform` routes and platform-scoped services.
 
 ---

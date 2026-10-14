@@ -10,7 +10,7 @@ function safeRevalidatePath(path: string) {
   }
 }
 
-import { requireSession, requireAdminOrOwner, ForbiddenError } from "@/lib/auth/guards";
+import { requireSession, requireManagerOrOwner, ForbiddenError } from "@/lib/auth/guards";
 import { getMemberships } from "@/lib/auth/session";
 import {
   getStaffTimeBlocksService,
@@ -62,7 +62,7 @@ async function resolveAuthorizedBusiness(targetStaffId?: string) {
     return { businessId: targetBusinessId, user, role: membership.role, staffId: sp.id };
   }
 
-  const { membership: checkedMembership } = await requireAdminOrOwner(targetBusinessId);
+  const { membership: checkedMembership } = await requireManagerOrOwner(targetBusinessId);
   return { businessId: targetBusinessId, user, role: checkedMembership.role, staffId: targetStaffId };
 }
 

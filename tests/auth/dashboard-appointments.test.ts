@@ -74,7 +74,7 @@ describe("Dashboard Appointments Daily Agenda (TASK 008A)", { concurrency: false
       INSERT INTO business_members (id, business_id, user_id, role)
       VALUES 
       ('${bmOwner}', '${bizMain}', '${ownerId}', 'OWNER'),
-      ('${bmAdmin}', '${bizMain}', '${adminId}', 'ADMIN'),
+      ('${bmAdmin}', '${bizMain}', '${adminId}', 'MANAGER'),
       ('${bmStaff}', '${bizMain}', '${staffId}', 'STAFF'),
       ('${bmStaff2}', '${bizMain}', '${staff2Id}', 'STAFF'),
       ('${bmOtherOwner}', '${bizOther}', '${otherOwnerId}', 'OWNER'),
@@ -163,8 +163,8 @@ describe("Dashboard Appointments Daily Agenda (TASK 008A)", { concurrency: false
     assert.equal(res.appointments[2].id, uuid(603));
   });
 
-  it("ADMIN can view business appointments with staff filter", async () => {
-    const res = await dashboardService.getDashboardDailyAgenda(bizMain, adminId, 'ADMIN', '2026-10-10', staffProf1);
+  it("MANAGER can view business appointments with staff filter", async () => {
+    const res = await dashboardService.getDashboardDailyAgenda(bizMain, adminId, 'MANAGER', '2026-10-10', staffProf1);
     assert.equal(res.appointments.length, 2);
     assert.equal(res.appointments[0].id, uuid(601));
     assert.equal(res.appointments[1].id, uuid(603));

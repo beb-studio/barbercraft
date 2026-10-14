@@ -93,7 +93,7 @@ before(async () => {
     { businessId: bizIncomplete, userId: userIncompleteOwner, role: "OWNER" },
     { id: memOwnerYes, businessId: bizYes, userId: userOwnerYes, role: "OWNER" },
     { businessId: bizYes, userId: userStaff, role: "STAFF" },
-    { businessId: bizYes, userId: userAdmin, role: "ADMIN" },
+    { businessId: bizYes, userId: userAdmin, role: "MANAGER" },
     { id: memOwnerNo, businessId: bizNo, userId: userOwnerNo, role: "OWNER" },
     { id: memOwnerFail, businessId: bizFail, userId: userOwnerFail, role: "OWNER" },
   ]);

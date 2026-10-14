@@ -123,7 +123,7 @@ export function DailyAgendaView({
           </Button>
         </div>
         
-        {(role === "OWNER" || role === "ADMIN") && (
+        {(role === "OWNER" || role === "MANAGER") && (
           <div className="w-full md:w-64 shrink-0 px-2 md:px-0 md:pr-2">
             <select
               className="w-full bg-background p-2 text-sm border-border border rounded-lg outline-none focus:ring-2 focus:ring-primary/20 text-foreground"
@@ -178,7 +178,7 @@ export function DailyAgendaView({
                         ({app.service.durationSnapshot} dk • {formatCurrency(app.service.priceSnapshot)})
                       </span>
                     </div>
-                    {(role === "OWNER" || role === "ADMIN") && app.staff.displayName && (
+                    {(role === "OWNER" || role === "MANAGER") && app.staff.displayName && (
                       <div className="flex items-center gap-1">
                         <span className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Personel:</span>
                         <span className="text-foreground">{app.staff.displayName}</span>
@@ -193,7 +193,7 @@ export function DailyAgendaView({
                           <Link href={`/dashboard/appointments/${app.id}/reschedule`} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "text-xs h-8")}>
                             Yeniden Planla
                           </Link>
-                          {(role === "OWNER" || role === "ADMIN") && (
+                          {(role === "OWNER" || role === "MANAGER") && (
                             <Link href={`/dashboard/appointments/${app.id}/reassign`} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "text-xs h-8")}>
                               Personel Değiştir
                             </Link>

@@ -100,7 +100,7 @@ before(async () => {
   // Insert memberships
   await db.insert(businessMembers).values([
     { id: memOwnerA, businessId: bizA, userId: userOwnerA, role: "OWNER" },
-    { id: memAdminA, businessId: bizA, userId: userAdmin, role: "ADMIN" },
+    { id: memAdminA, businessId: bizA, userId: userAdmin, role: "MANAGER" },
     { id: memStaffA, businessId: bizA, userId: userStaff, role: "STAFF" },
     { id: memOwnerB, businessId: bizB, userId: userOwnerB, role: "OWNER" },
   ]);

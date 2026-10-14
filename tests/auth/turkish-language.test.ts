@@ -28,15 +28,16 @@ describe("TASK 009B: Turkish Language & Presentation Standardization", () => {
   });
 
   describe("2. Role Presentation", () => {
-    it("maps all business roles to Turkish labels", () => {
+    it("maps all business roles and public actor to Turkish labels", () => {
       assert.equal(getRoleLabel("OWNER"), "İşletme Sahibi");
-      assert.equal(getRoleLabel("ADMIN"), "Yönetici");
+      assert.equal(getRoleLabel("MANAGER"), "İşletme Yöneticisi");
       assert.equal(getRoleLabel("STAFF"), "Personel");
+      assert.equal(getRoleLabel("CUSTOMER"), "Müşteri");
     });
 
     it("maps platform admin roles to Turkish labels", () => {
       assert.equal(getPlatformRoleLabel("SUPER_ADMIN"), "Süper Yönetici");
-      assert.equal(getPlatformRoleLabel("ADMIN"), "Platform Yöneticisi");
+      assert.equal(getPlatformRoleLabel("PLATFORM_ADMIN"), "Platform Yöneticisi");
     });
   });
 

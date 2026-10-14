@@ -9,7 +9,7 @@ import { NotificationSettingsForm } from "./notification-settings-form";
 export default async function NotificationSettingsPage() {
   const membership = (await getMemberships())[0];
   if (!membership) redirect("/login");
-  if (membership.role !== "OWNER" && membership.role !== "ADMIN") {
+  if (membership.role !== "OWNER" && membership.role !== "MANAGER") {
     redirect("/dashboard");
   }
   const record = await NotificationPlannerService.getSettingsForBusiness(

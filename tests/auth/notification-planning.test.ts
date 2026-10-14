@@ -47,7 +47,7 @@ before(async () => {
     { id: ids.businessB, name: "Bildirim B", slug: "notification-b", timezone: "UTC", currency: "TRY", onboardingCompletedAt: new Date() },
   ]);
   await db.insert(schema.businessMembers).values([
-    { id: ids.ownerMember, businessId: ids.business, userId: ids.owner, role: "OWNER" }, { id: ids.adminMember, businessId: ids.business, userId: ids.admin, role: "ADMIN" }, { id: ids.staffMember, businessId: ids.business, userId: ids.staff, role: "STAFF" },
+    { id: ids.ownerMember, businessId: ids.business, userId: ids.owner, role: "OWNER" }, { id: ids.adminMember, businessId: ids.business, userId: ids.admin, role: "MANAGER" }, { id: ids.staffMember, businessId: ids.business, userId: ids.staff, role: "STAFF" },
   ]);
   await db.insert(schema.platformAdmins).values({ userId: ids.platform, role: "SUPER_ADMIN" });
   await db.insert(schema.staffProfiles).values({ id: ids.staffProfile, businessId: ids.business, businessMemberId: ids.staffMember, firstName: "Bildirim", lastName: "Personeli" });

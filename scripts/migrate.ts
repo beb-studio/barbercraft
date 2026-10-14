@@ -5,6 +5,16 @@ import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { logger } from "../src/lib/logger";
 import { redactUrlCredentials } from "../src/lib/redact";
 
+if (typeof process.loadEnvFile === "function") {
+  for (const envFile of [".env.qa.local", ".env.local", ".env"]) {
+    try {
+      process.loadEnvFile(envFile);
+    } catch {
+      // Ignore if file does not exist
+    }
+  }
+}
+
 async function runMigrations(): Promise<void> {
   const dbUrl = process.env.DATABASE_URL?.trim();
   if (!dbUrl) {

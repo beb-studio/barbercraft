@@ -3,10 +3,11 @@ import { users } from "./users";
 
 export const platformAdminRoleEnum = pgEnum("platform_admin_role", [
   "SUPER_ADMIN",
-  "ADMIN",
+  "PLATFORM_ADMIN",
 ]);
 
 export type PlatformAdminRole = (typeof platformAdminRoleEnum.enumValues)[number];
+export type PlatformRole = PlatformAdminRole;
 
 export const platformAdmins = pgTable(
   "platform_admins",

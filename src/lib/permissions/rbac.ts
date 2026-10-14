@@ -30,7 +30,7 @@ const STAFF_PERMISSIONS: Permission[] = [
   "time_blocks:manage_own",
 ];
 
-const ADMIN_PERMISSIONS: Permission[] = [
+const MANAGER_PERMISSIONS: Permission[] = [
   "members:manage_staff",
   "services:manage",
   "staff_profiles:manage",
@@ -47,9 +47,9 @@ const ADMIN_PERMISSIONS: Permission[] = [
 
 const ROLE_PERMISSIONS: Record<BusinessMemberRole, Permission[]> = {
   STAFF: STAFF_PERMISSIONS,
-  ADMIN: ADMIN_PERMISSIONS,
-  // OWNER = everything ADMIN can do + business configuration + managing admins.
-  OWNER: [...ADMIN_PERMISSIONS, "business:manage", "members:manage_admins"],
+  MANAGER: MANAGER_PERMISSIONS,
+  // OWNER = everything MANAGER can do + business configuration + managing managers.
+  OWNER: [...MANAGER_PERMISSIONS, "business:manage", "members:manage_admins"],
 };
 
 export function hasPermission(

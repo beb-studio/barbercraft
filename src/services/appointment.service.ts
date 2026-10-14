@@ -333,7 +333,7 @@ export const AppointmentService = {
         if (!staffProfile || staffProfile.id !== staffId) {
           throw new Error("FORBIDDEN: You cannot mutate another staff member's appointment");
         }
-      } else if (userRole !== "OWNER" && userRole !== "ADMIN") {
+      } else if (userRole !== "OWNER" && userRole !== "MANAGER") {
         throw new Error("FORBIDDEN: Unauthorized role");
       }
 
@@ -433,7 +433,7 @@ export const AppointmentService = {
         if (!sp || sp.id !== staffId) {
           throw new Error("FORBIDDEN: You cannot mutate another staff member's appointment");
         }
-      } else if (input.userRole !== "OWNER" && input.userRole !== "ADMIN") {
+      } else if (input.userRole !== "OWNER" && input.userRole !== "MANAGER") {
         throw new Error("FORBIDDEN: Unauthorized role");
       }
 
@@ -582,7 +582,7 @@ export const AppointmentService = {
 
       if (userRole === "STAFF") {
         throw new Error("FORBIDDEN: Staff cannot reassign appointments");
-      } else if (userRole !== "OWNER" && userRole !== "ADMIN") {
+      } else if (userRole !== "OWNER" && userRole !== "MANAGER") {
         throw new Error("FORBIDDEN: Unauthorized role");
       }
 

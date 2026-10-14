@@ -21,7 +21,7 @@ export async function getDashboardDailyAgenda(
   selectedDate: string;
 }> {
   // Validate Role
-  if (!["OWNER", "ADMIN", "STAFF"].includes(userRole)) {
+  if (!["OWNER", "MANAGER", "STAFF"].includes(userRole)) {
     throw new Error(`Forbidden: Role ${userRole} is not authorized.`);
   }
 

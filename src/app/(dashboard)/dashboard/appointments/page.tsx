@@ -42,7 +42,7 @@ export default async function DashboardAppointmentsPage({ searchParams }: PagePr
   );
 
   let staffList: { id: string; name: string }[] = [];
-  if (role === "OWNER" || role === "ADMIN") {
+  if (role === "OWNER" || role === "MANAGER") {
     const rawStaffList = await getStaffMembersWithProfilesByBusiness(businessId);
     staffList = rawStaffList
       .filter((s) => s.staffProfileId)

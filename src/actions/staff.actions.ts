@@ -1,6 +1,6 @@
 "use server";
 
-import { requireSession, requireAdminOrOwner } from "@/lib/auth/guards";
+import { requireSession, requireManagerOrOwner } from "@/lib/auth/guards";
 import { getMemberships } from "@/lib/auth/session";
 import { db } from "@/db";
 import { businesses, businessWorkingHours, services, users } from "@/db/schema";
@@ -119,7 +119,7 @@ export async function completeOwnerStaffAction(payload: CompleteOwnerStaffPayloa
 
 /**
  * Resolves the authenticated business ID for staff management.
- * Verifies that the caller has an active membership and role OWNER or ADMIN.
+ * Verifies that the caller has an active membership and role OWNER or MANAGER.
  */
 async function resolveAuthorizedBusiness(businessIdParam?: string) {
   const user = await requireSession();
@@ -138,7 +138,7 @@ async function resolveAuthorizedBusiness(businessIdParam?: string) {
     targetBusinessId = matched.business_id;
   }
 
-  const { membership } = await requireAdminOrOwner(targetBusinessId);
+  const { membership } = await requireManagerOrOwner(targetBusinessId);
   return { businessId: targetBusinessId, user, role: membership.role };
 }
 
@@ -350,7 +350,7 @@ export async function saveStaffWorkingHoursAction(payload: SaveStaffWorkingHours
       }
       if (error.name === "ForbiddenError") {
         const msg =
-          error.message === "ADMIN or OWNER role required"
+          error.message === "MANAGER or OWNER role required"
             ? "Bu işlem için yetkiniz yok."
             : error.message || "Bu işlem için yetkiniz yok.";
         return { success: false as const, error: msg };

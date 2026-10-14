@@ -26,7 +26,7 @@ interface DashboardShellProps {
   children: React.ReactNode;
   businessName: string;
   businessSlug: string;
-  userRole: "OWNER" | "ADMIN" | "STAFF";
+  userRole: "OWNER" | "MANAGER" | "STAFF";
   userName: string;
   userEmail: string;
   isPlatformAdmin: boolean;
@@ -48,8 +48,8 @@ export function DashboardShell({
     switch (role) {
       case "OWNER":
         return "İşletme Sahibi";
-      case "ADMIN":
-        return "Yönetici";
+      case "MANAGER":
+        return "İşletme Yöneticisi";
       case "STAFF":
         return "Personel";
       default:
@@ -102,7 +102,7 @@ export function DashboardShell({
             exact: false,
             showInBottomNav: true,
           },
-          ...(userRole === "OWNER" || userRole === "ADMIN"
+          ...(userRole === "OWNER" || userRole === "MANAGER"
             ? [
                 {
                   href: "/dashboard/services",

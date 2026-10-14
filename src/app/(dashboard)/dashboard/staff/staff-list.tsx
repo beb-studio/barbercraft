@@ -23,7 +23,7 @@ import type { BusinessMemberWithProfile } from "@/repositories/staff.repository"
 
 interface StaffListProps {
   initialMembers: BusinessMemberWithProfile[];
-  userRole?: "OWNER" | "ADMIN" | "STAFF";
+  userRole?: "OWNER" | "MANAGER" | "STAFF";
 }
 
 export function StaffList({ initialMembers, userRole }: StaffListProps) {
@@ -148,7 +148,7 @@ export function StaffList({ initialMembers, userRole }: StaffListProps) {
                   const canManageServices =
                     member.hasStaffProfile &&
                     member.staffProfileId &&
-                    !(userRole === "ADMIN" && member.role === "OWNER");
+                    !(userRole === "MANAGER" && member.role === "OWNER");
 
                   return (
                     <tr
@@ -180,20 +180,20 @@ export function StaffList({ initialMembers, userRole }: StaffListProps) {
                           variant={
                             member.role === "OWNER"
                               ? "default"
-                              : member.role === "ADMIN"
+                              : member.role === "MANAGER"
                               ? "secondary"
                               : "outline"
                           }
                           className={cn(
                             "text-[10px] px-2 py-0.5 font-medium",
                             member.role === "OWNER" && "bg-amber-600 hover:bg-amber-600/90 text-white",
-                            member.role === "ADMIN" && "bg-blue-600 hover:bg-blue-600/90 text-white"
+                            member.role === "MANAGER" && "bg-blue-600 hover:bg-blue-600/90 text-white"
                           )}
                         >
                           {member.role === "OWNER"
                             ? "İşletme Sahibi"
-                            : member.role === "ADMIN"
-                            ? "Yönetici"
+                            : member.role === "MANAGER"
+                            ? "İşletme Yöneticisi"
                             : "Personel"}
                         </Badge>
                       </td>
@@ -274,7 +274,7 @@ export function StaffList({ initialMembers, userRole }: StaffListProps) {
               const canManageServices =
                 member.hasStaffProfile &&
                 member.staffProfileId &&
-                !(userRole === "ADMIN" && member.role === "OWNER");
+                !(userRole === "MANAGER" && member.role === "OWNER");
 
               return (
                 <div
@@ -294,20 +294,20 @@ export function StaffList({ initialMembers, userRole }: StaffListProps) {
                           variant={
                             member.role === "OWNER"
                               ? "default"
-                              : member.role === "ADMIN"
+                              : member.role === "MANAGER"
                               ? "secondary"
                               : "outline"
                           }
                           className={cn(
                             "text-[10px] px-2 py-0.5 font-medium",
                             member.role === "OWNER" && "bg-amber-600 hover:bg-amber-600/90 text-white",
-                            member.role === "ADMIN" && "bg-blue-600 hover:bg-blue-600/90 text-white"
+                            member.role === "MANAGER" && "bg-blue-600 hover:bg-blue-600/90 text-white"
                           )}
                         >
                           {member.role === "OWNER"
                             ? "İşletme Sahibi"
-                            : member.role === "ADMIN"
-                            ? "Yönetici"
+                            : member.role === "MANAGER"
+                            ? "İşletme Yöneticisi"
                             : "Personel"}
                         </Badge>
                         <Badge

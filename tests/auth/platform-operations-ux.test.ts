@@ -106,7 +106,7 @@ before(async () => {
   // Seed Platform Admins
   await db.insert(schema.platformAdmins).values([
     { id: ids.superAdminRecord, userId: ids.superAdminUser, role: "SUPER_ADMIN", active: true },
-    { id: ids.adminRecord, userId: ids.adminUser, role: "ADMIN", active: true },
+    { id: ids.adminRecord, userId: ids.adminUser, role: "PLATFORM_ADMIN", active: true },
   ]);
 
   // Seed Businesses
