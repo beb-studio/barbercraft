@@ -16,7 +16,7 @@ if (typeof process.loadEnvFile === "function") {
 
 const ownerEmail = process.env.QA_OWNER_EMAIL;
 const ownerPassword = process.env.QA_OWNER_PASSWORD;
-const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://127.0.0.1:3001";
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://127.0.0.1:4380";
 
 if (!ownerEmail || !ownerPassword) {
   throw new Error("QA owner credentials are required for policy visual QA.");

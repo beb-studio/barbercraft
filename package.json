@@ -3,9 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 4380",
+    "dev:setup": "tsx scripts/dev-setup.ts",
+    "dev:all": "tsx scripts/dev-all.ts",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 4380",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "db:test": "node --test tests/database/*.test.mjs",
@@ -14,8 +16,9 @@
     "platform-admin:grant": "tsx --conditions react-server scripts/platform-admin-cli.ts grant",
     "platform-admin:list": "tsx --conditions react-server scripts/platform-admin-cli.ts list",
     "qa:bootstrap": "tsx --conditions react-server scripts/qa-bootstrap.ts",
+    "qa:reset": "tsx --conditions react-server scripts/qa-reset.ts",
     "db:migrate": "tsx scripts/migrate.ts",
-    "worker:start": "tsx scripts/worker.ts"
+    "worker:start": "tsx --conditions react-server scripts/worker.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
@@ -51,6 +54,9 @@
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
     "typescript": "^5"
+  },
+  "engines": {
+    "node": ">=22.13.0 <23.0.0"
   },
   "packageManager": "pnpm@11.12.0"
 }

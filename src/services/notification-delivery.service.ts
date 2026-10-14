@@ -13,7 +13,7 @@ import {
 } from "@/lib/notification-delivery";
 import { formatInstantInBusinessTimezone } from "@/lib/timezone";
 import { normalizePhone } from "@/lib/phone";
-import { NetgsmSmsProvider, type SmsProvider } from "@/lib/sms";
+import { NetgsmSmsProvider, TestSmsProvider, type SmsProvider } from "@/lib/sms";
 import { NotificationDeliveryRepository } from "@/repositories/notification-delivery.repository";
 import { NotificationPlanningRepository } from "@/repositories/notification-planning.repository";
 import { AppointmentAccessService } from "@/services/appointment-access.service";
@@ -31,7 +31,34 @@ export class NotificationDeliveryError extends Error {
   }
 }
 
-const defaultSmsProvider = new NetgsmSmsProvider();
+/**
+ * Resolves the active SMS provider:
+ * 1. Explicit SMS_PROVIDER="test" or "mock" -> TestSmsProvider
+ * 2. Explicit SMS_PROVIDER="netgsm" -> NetgsmSmsProvider
+ * 3. In production -> NetgsmSmsProvider
+ * 4. In development without complete Netgsm credentials -> TestSmsProvider (fail-safe)
+ */
+export function resolveSmsProvider(): SmsProvider {
+  const configured = process.env.SMS_PROVIDER?.toLowerCase()?.trim();
+  if (configured === "test" || configured === "mock") {
+    return new TestSmsProvider();
+  }
+  if (configured === "netgsm") {
+    return new NetgsmSmsProvider();
+  }
+  if (process.env.NODE_ENV === "production") {
+    return new NetgsmSmsProvider();
+  }
+  const hasNetgsm = Boolean(
+    process.env.NETGSM_USERCODE?.trim() &&
+    process.env.NETGSM_PASSWORD?.trim() &&
+    process.env.NETGSM_MSGHEADER?.trim()
+  );
+  if (!hasNetgsm) {
+    return new TestSmsProvider();
+  }
+  return new NetgsmSmsProvider();
+}
 
 export const NotificationDeliveryService = {
   async materializeDuePlan(input: {
@@ -50,7 +77,7 @@ export const NotificationDeliveryService = {
     deliveryId?: string;
   }> {
     const referenceNow = input.referenceNow ?? new Date();
-    const providerName = input.providerName ?? defaultSmsProvider.name;
+    const providerName = input.providerName ?? "netgsm";
 
     return db.transaction(async (tx) => {
       const plan = await NotificationDeliveryRepository.lockPlanForMaterialization(
@@ -230,7 +257,7 @@ export const NotificationDeliveryService = {
   }): Promise<{ materialized: number; skipped: number; failedRecipient: number }> {
     const batchSize = input.batchSize ?? 25;
     const referenceNow = input.referenceNow ?? new Date();
-    const providerName = input.providerName ?? defaultSmsProvider.name;
+    const providerName = input.providerName ?? "netgsm";
 
     const duePlans = await NotificationDeliveryRepository.findDuePendingPlans(
       db,
@@ -277,7 +304,7 @@ export const NotificationDeliveryService = {
     isPermanent?: boolean;
   }> {
     const referenceNow = input.referenceNow ?? new Date();
-    const provider = input.provider ?? defaultSmsProvider;
+    const provider = input.provider ?? resolveSmsProvider();
 
     const context = await NotificationDeliveryRepository.findDeliveryContext(
       db,
@@ -502,7 +529,7 @@ export const NotificationDeliveryService = {
     }
 
     const referenceNow = input.referenceNow ?? new Date();
-    const provider = input.provider ?? defaultSmsProvider;
+    const provider = input.provider ?? resolveSmsProvider();
 
     // 1. Reconcile/materialize due plans
     const { materialized } = await NotificationDeliveryService.materializeDuePlansBatch(

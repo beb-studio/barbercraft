@@ -13,7 +13,7 @@ async function main() {
     }
   }
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://127.0.0.1:3001";
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://127.0.0.1:4380";
   const { db } = await import("../src/db");
   const { businesses, services } = await import("../src/db/schema");
   const { and, eq } = await import("drizzle-orm");

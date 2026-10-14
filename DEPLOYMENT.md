@@ -28,7 +28,7 @@ BarberCraft runs as a containerized or service-managed architecture composed of 
 ┌───────────────────────────────┐              ┌──────────────────────────────┐
 │     Next.js Web Service       │              │ Notification Background      │
 │   (Standalone Node.js Server) │              │ Worker (Polling Daemon)      │
-│   - Port: 3000 (Internal)     │              │ - Outbox Planning            │
+│   - Port: 4380 (Internal)     │              │ - Outbox Planning            │
 │   - SSR & Server Actions      │              │ - Due SMS Delivery Batch     │
 │   - Health & Ready Probes     │              │ - Rate Limit Housekeeping    │
 └───────────────────────────────┘              └──────────────────────────────┘
@@ -46,7 +46,7 @@ BarberCraft runs as a containerized or service-managed architecture composed of 
 ```
 
 ### Component Roles
-1. **Edge Reverse Proxy (`caddy` or `nginx`)**: Terminates public TLS/HTTPS, enforces HTTP/2 or HTTP/3, strips and overwrites `X-Real-IP` and `X-Forwarded-For` from client connections to prevent IP spoofing, and forwards traffic to the internal Next.js application port (3000).
+1. **Edge Reverse Proxy (`caddy` or `nginx`)**: Terminates public TLS/HTTPS, enforces HTTP/2 or HTTP/3, strips and overwrites `X-Real-IP` and `X-Forwarded-For` from client connections to prevent IP spoofing, and forwards traffic to the internal Next.js application port (4380).
 2. **Next.js Standalone Application (`app`)**: Minimalist Alpine container executing `node server.js` built via Next.js standalone output. Serves Turkish customer booking flows, business management dashboards, staff agendas, and the platform super admin console.
 3. **Background Notification Worker (`worker`)**: Independent Node.js daemon executing `scripts/worker.ts`. Polls the notification outbox, materializes reminder deliveries, dispatches SMS via provider adapters, and runs periodic rate limit window pruning.
 4. **PostgreSQL Database (`postgres`)**: Production database storing tenant data, appointments, audit logs, authentication records, and rate limiting states. Exposed only on internal container network.
@@ -156,10 +156,10 @@ docker compose -f docker-compose.production.yml up -d --no-deps app
 Wait for container initialization and verify application readiness:
 ```bash
 # Verify internal health probe (unauthenticated liveness, zero DB queries)
-curl -fsS http://127.0.0.1:3000/api/health
+curl -fsS http://127.0.0.1:4380/api/health
 
 # Verify internal readiness probe (database connectivity check via bounded SELECT 1)
-curl -fsS http://127.0.0.1:3000/api/ready
+curl -fsS http://127.0.0.1:4380/api/ready
 ```
 - Liveness `/api/health` returns HTTP 200 `{ "status": "ok", "uptimeSeconds": ... }`.
 - Readiness `/api/ready` returns HTTP 200 `{ "status": "ready", "latencyMs": ... }`.
@@ -188,7 +188,7 @@ randevu.isletmeniz.com {
     encode zstd gzip
 
     # Reverse proxy to internal Next.js standalone container
-    reverse_proxy app:3000 {
+    reverse_proxy app:4380 {
         header_up X-Real-IP {remote_host}
         header_up X-Forwarded-For {remote_host}
         header_up X-Forwarded-Proto https

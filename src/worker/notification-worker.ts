@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { NotificationPlannerService } from "@/services/notification-planner.service";
-import { NotificationDeliveryService } from "@/services/notification-delivery.service";
+import { NotificationDeliveryService, resolveSmsProvider } from "@/services/notification-delivery.service";
 import { cleanupExpiredRateLimits } from "@/lib/rate-limit";
 import { closeDatabasePool } from "@/db";
 import { logger } from "@/lib/logger";
@@ -47,7 +47,7 @@ export class NotificationWorker {
     this.pollIntervalMs = options.pollIntervalMs ?? parseInt(process.env.NOTIFICATION_WORKER_POLL_INTERVAL_MS || "5000", 10);
     this.batchSize = options.batchSize ?? parseInt(process.env.NOTIFICATION_WORKER_BATCH_SIZE || "25", 10);
     this.housekeepingIntervalMs = options.housekeepingIntervalMs ?? 60_000;
-    this.provider = options.provider;
+    this.provider = options.provider ?? resolveSmsProvider();
   }
 
   /**
